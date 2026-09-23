@@ -6,7 +6,7 @@
     {{range .Letters}}
       <li>
         <div class="row">
-          <span><span class="badge failed">{{if .ErrorCode}}{{.ErrorCode}}{{else}}sem código{{end}}</span></span>
+          <span><span class="badge source">{{.Source}}</span> <span class="badge failed">{{if .ErrorCode}}{{.ErrorCode}}{{else}}sem código{{end}}</span></span>
           <span class="time">{{if not .FailedAt.IsZero}}{{clock .FailedAt}}{{end}}</span>
         </div>
         <div class="meta">{{if .MessageID}}id <code>{{.MessageID}}</code> · {{end}}{{.Attempt}} tentativa(s)</div>

@@ -36,6 +36,12 @@ func newSource(name config.SourceName) (runner.Source, error) {
 	case config.SourceRabbitMQ:
 		handler := consumer.NewMailerConsumer(MailerService).Handle
 		return messaging.NewSource(messaging.NewConsumer(messaging.NewRabbitMQConfig(), RetryPolicy), handler), nil
+	case config.SourceKafka:
+		cfg, err := config.NewKafkaConfig()
+		if err != nil {
+			return nil, err
+		}
+		return messaging.NewKafkaSource(cfg, RetryPolicy, consumer.NewMailerConsumer(MailerService).Handle), nil
 	case config.SourceHTTP:
 		cfg, err := config.NewHTTPAPIConfig()
 		if err != nil {

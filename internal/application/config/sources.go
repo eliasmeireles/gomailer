@@ -14,12 +14,14 @@ const (
 	SourceRabbitMQ SourceName = "rabbitmq"
 	// SourceHTTP accepts requests on the POST /v1/emails endpoint.
 	SourceHTTP SourceName = "http"
+	// SourceKafka consumes requests from a Kafka topic.
+	SourceKafka SourceName = "kafka"
 
 	envMailerSources     = "MAILER_SOURCES"
 	defaultMailerSources = "rabbitmq"
 )
 
-var knownSources = []SourceName{SourceRabbitMQ, SourceHTTP}
+var knownSources = []SourceName{SourceRabbitMQ, SourceHTTP, SourceKafka}
 
 // Sources reads MAILER_SOURCES, a comma-separated list of enabled sources (default "rabbitmq").
 //

@@ -31,7 +31,7 @@ func TestSources(t *testing.T) {
 
 		_, err := Sources()
 
-		require.EqualError(t, err, `MAILER_SOURCES: unknown source "pigeon", available: rabbitmq, http`)
+		require.EqualError(t, err, `MAILER_SOURCES: unknown source "pigeon", available: rabbitmq, http, kafka`)
 	})
 
 	t.Run("given only separators then return error", func(t *testing.T) {

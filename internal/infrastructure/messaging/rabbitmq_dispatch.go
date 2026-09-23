@@ -11,18 +11,7 @@ import (
 	"github.com/eliasmeireles/gomailer/internal/core/mailer"
 )
 
-const (
-	headerAttempt   = "x-attempt"
-	headerErrorCode = "x-error-code"
-	headerCause     = "x-error-cause"
-	headerFailedAt  = "x-failed-at"
-
-	maxCauseHeaderChars = 1024
-	publishTimeout      = 10 * time.Second
-)
-
-// Handler processes a message body on the given attempt (1-based).
-type Handler func(body []byte, attempt int) mailer.Outcome
+const publishTimeout = 10 * time.Second
 
 // apply acks the message after executing outcome.Action: retries are republished to the retry
 // queue with the next attempt number, final unhandled failures to the dead-letter queue. When
@@ -105,12 +94,4 @@ func ack(msg amqp.Delivery) {
 	if err := msg.Ack(false); err != nil {
 		log.Errorf("Failed to ack message: %v", err)
 	}
-}
-
-func truncate(value string, maxChars int) string {
-	runes := []rune(value)
-	if len(runes) <= maxChars {
-		return value
-	}
-	return string(runes[:maxChars])
 }

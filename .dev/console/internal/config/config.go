@@ -15,6 +15,9 @@ type Config struct {
 	RabbitMQUser       string
 	RabbitMQPass       string
 	MockAPIURL         string
+	KafkaBrokers       []string
+	KafkaTopic         string
+	KafkaGroupID       string
 	MailpitURL         string
 	MailpitPublicURL   string
 	CallbackServerURL  string
@@ -36,6 +39,9 @@ func Load() Config {
 		RabbitMQUser:       envOrDefault("RABBITMQ_USER", "guest"),
 		RabbitMQPass:       envOrDefault("RABBITMQ_PASS", "guest"),
 		MockAPIURL:         trimSlash(envOrDefault("MOCK_API_URL", "http://mockapi:9100")),
+		KafkaBrokers:       strings.Split(envOrDefault("KAFKA_BROKERS", "kafka:9092"), ","),
+		KafkaTopic:         envOrDefault("KAFKA_TOPIC", "mailer-service"),
+		KafkaGroupID:       envOrDefault("KAFKA_GROUP_ID", "gomailer"),
 		MailpitURL:         trimSlash(envOrDefault("MAILPIT_URL", "http://mailpit:8025")),
 		MailpitPublicURL:   trimSlash(envOrDefault("MAILPIT_PUBLIC_URL", "http://localhost:8025")),
 		CallbackServerURL:  trimSlash(envOrDefault("CALLBACK_SERVER_URL", "http://callback:9099")),

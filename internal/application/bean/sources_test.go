@@ -38,6 +38,23 @@ func TestNewSource(t *testing.T) {
 		assert.Equal(t, "rabbitmq", source.Name())
 	})
 
+	t.Run("given the kafka source with brokers then build it", func(t *testing.T) {
+		t.Setenv("KAFKA_BROKERS", "localhost:9092")
+
+		source, err := newSource(config.SourceKafka)
+
+		require.NoError(t, err)
+		assert.Equal(t, "kafka", source.Name())
+	})
+
+	t.Run("given the kafka source without brokers then return error", func(t *testing.T) {
+		t.Setenv("KAFKA_BROKERS", "")
+
+		_, err := newSource(config.SourceKafka)
+
+		require.Error(t, err)
+	})
+
 	t.Run("given an unsupported source then return error", func(t *testing.T) {
 		_, err := newSource("pigeon")
 

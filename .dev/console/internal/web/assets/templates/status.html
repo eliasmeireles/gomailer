@@ -5,12 +5,20 @@
   {{else}}
     <span class="pill bad">mailer indisponível</span>
   {{end}}
-  {{if .QueueError}}
-    <span class="pill bad" title="{{.QueueError}}">fila indisponível</span>
-  {{else}}
-    <span class="pill">na fila <strong>{{.Queue.Messages}}</strong></span>
-    <span class="pill {{if eq .Queue.Consumers 0}}bad{{else}}ok{{end}}">consumidores <strong>{{.Queue.Consumers}}</strong></span>
-    <span class="pill {{if .Queue.Retrying}}warn{{end}}">em retry <strong>{{.Queue.Retrying}}</strong></span>
-    <span class="pill {{if .Queue.DeadLettered}}bad{{end}}">DLQ <strong>{{.Queue.DeadLettered}}</strong></span>
-  {{end}}
+  {{template "queue-pills" dict "Label" "RabbitMQ" "Stats" .Queue "Error" .QueueError}}
+  {{template "queue-pills" dict "Label" "Kafka" "Stats" .Kafka "Error" .KafkaError}}
 </div>
+
+{{define "queue-pills"}}
+  {{if .Error}}
+    <span class="pill bad" title="{{.Error}}">{{.Label}} indisponível</span>
+  {{else}}
+    <span class="pill-group">
+      <span class="pill-label">{{.Label}}</span>
+      <span class="pill">pendentes <strong>{{.Stats.Messages}}</strong></span>
+      <span class="pill {{if eq .Stats.Consumers 0}}bad{{else}}ok{{end}}">consumidores <strong>{{.Stats.Consumers}}</strong></span>
+      <span class="pill {{if .Stats.Retrying}}warn{{end}}">em retry <strong>{{.Stats.Retrying}}</strong></span>
+      <span class="pill {{if .Stats.DeadLettered}}bad{{end}}">DLQ <strong>{{.Stats.DeadLettered}}</strong></span>
+    </span>
+  {{end}}
+{{end}}
