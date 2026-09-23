@@ -33,6 +33,7 @@ DEV_COMPOSE := MAILER_ENV=$(MAILER_ENV) docker compose -f .dev/docker-compose.ya
 .PHONY: dev-up dev-publish dev-logs dev-down
 
 dev-up:
+	@test -f .dev/env/$(MAILER_ENV).env || { echo "Missing .dev/env/$(MAILER_ENV).env: copy .dev/env/$(MAILER_ENV).env.example and fill it in."; exit 1; }
 	@$(DEV_COMPOSE) up -d --build --force-recreate mailer console callback
 	@echo "console: http://localhost:$${CONSOLE_PORT:-3000}  mailpit: http://localhost:$${MAILPIT_UI_PORT:-8025}"
 
