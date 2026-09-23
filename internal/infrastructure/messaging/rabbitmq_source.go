@@ -9,11 +9,11 @@ import (
 // Source adapts a Consumer to the runner Source contract.
 type Source struct {
 	consumer *Consumer
-	handler  func(body []byte) error
+	handler  Handler
 }
 
 // NewSource creates the RabbitMQ source that feeds every delivery to handler.
-func NewSource(consumer *Consumer, handler func(body []byte) error) *Source {
+func NewSource(consumer *Consumer, handler Handler) *Source {
 	return &Source{consumer: consumer, handler: handler}
 }
 

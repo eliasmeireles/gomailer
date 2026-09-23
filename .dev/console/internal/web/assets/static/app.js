@@ -1,15 +1,18 @@
 const POLL_INTERVAL_MS = 3000;
 
+async function replaceWith(element, response) {
+  element.innerHTML = await response.text();
+}
+
 async function loadPanel(element) {
   try {
-    const response = await fetch(element.dataset.src);
-    element.innerHTML = await response.text();
+    await replaceWith(element, await fetch(element.dataset.src));
   } catch (error) {
     element.innerHTML = `<div class="notice error">Falha ao atualizar: ${error.message}</div>`;
   }
 }
 
-function refreshPanels() {
+function refreshPolledPanels() {
   if (document.hidden) return;
   document.querySelectorAll("[data-poll]").forEach(loadPanel);
 }
@@ -22,7 +25,7 @@ function setupPreview() {
   render();
 }
 
-function setupForm() {
+function setupSendForm() {
   const form = document.getElementById("send-form");
   const result = document.getElementById("result");
   const button = document.getElementById("send-button");
@@ -35,29 +38,39 @@ function setupForm() {
     event.preventDefault();
     button.disabled = true;
     try {
-      const response = await fetch("/send", { method: "POST", body: new FormData(form) });
-      result.innerHTML = await response.text();
-      refreshPanels();
+      await replaceWith(result, await fetch("/send", { method: "POST", body: new FormData(form) }));
+      refreshPolledPanels();
     } catch (error) {
-      result.innerHTML = `<div class="notice error">Falha ao publicar: ${error.message}</div>`;
+      result.innerHTML = `<div class="notice error">Falha ao enviar: ${error.message}</div>`;
     } finally {
       button.disabled = false;
     }
   });
 }
 
-function setupClearButtons() {
-  document.querySelectorAll("[data-clear]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const target = document.getElementById(button.dataset.target);
-      const response = await fetch(button.dataset.clear, { method: "POST" });
-      target.innerHTML = await response.text();
-    });
+// Panels rendered by the server contain forms (data-action) and buttons (data-clear) that post
+// to a partial endpoint and replace the element named by data-target with the response.
+function setupPartialActions() {
+  document.addEventListener("submit", async (event) => {
+    const form = event.target.closest("form[data-action]");
+    if (!form) return;
+    event.preventDefault();
+    const target = document.getElementById(form.dataset.target);
+    await replaceWith(target, await fetch(form.dataset.action, { method: "POST", body: new FormData(form) }));
+  });
+
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-clear]");
+    if (!button) return;
+    event.preventDefault();
+    const target = document.getElementById(button.dataset.target);
+    await replaceWith(target, await fetch(button.dataset.clear, { method: "POST" }));
+    refreshPolledPanels();
   });
 }
 
 setupPreview();
-setupForm();
-setupClearButtons();
-refreshPanels();
-setInterval(refreshPanels, POLL_INTERVAL_MS);
+setupSendForm();
+setupPartialActions();
+document.querySelectorAll("[data-src]").forEach(loadPanel);
+setInterval(refreshPolledPanels, POLL_INTERVAL_MS);

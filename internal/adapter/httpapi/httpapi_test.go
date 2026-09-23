@@ -28,7 +28,7 @@ type fakeDeliverer struct {
 	outcome  mailer.Outcome
 }
 
-func (f *fakeDeliverer) Deliver(data model.SendEmailData) mailer.Outcome {
+func (f *fakeDeliverer) DeliverOnce(data model.SendEmailData) mailer.Outcome {
 	f.received = data
 	f.calls++
 	outcome := f.outcome
@@ -60,7 +60,7 @@ func decodeEvent(t *testing.T, recorder *httptest.ResponseRecorder) model.Delive
 
 func TestEmailsEndpoint(t *testing.T) {
 	t.Run("given a valid request then deliver it and answer 200 with the sent event", func(t *testing.T) {
-		deliverer := &fakeDeliverer{outcome: mailer.Outcome{Event: model.DeliveryEvent{Subject: "Oi", Status: model.StatusSent}, Handled: true}}
+		deliverer := &fakeDeliverer{outcome: mailer.Outcome{Event: model.DeliveryEvent{Subject: "Oi", Status: model.StatusSent}}}
 
 		response := post(newTestServer(deliverer, 1<<20), "Bearer token-b", validBody)
 
@@ -71,7 +71,7 @@ func TestEmailsEndpoint(t *testing.T) {
 	})
 
 	t.Run("given a request without id then generate one", func(t *testing.T) {
-		deliverer := &fakeDeliverer{outcome: mailer.Outcome{Handled: true}}
+		deliverer := &fakeDeliverer{outcome: mailer.Outcome{}}
 
 		response := post(newTestServer(deliverer, 1<<20), "Bearer token-a", `{"from":"a@exemplo.com.br","receiver":"b@exemplo.com.br"}`)
 

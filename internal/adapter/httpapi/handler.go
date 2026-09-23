@@ -14,7 +14,7 @@ import (
 
 // Deliverer is what the handler needs from the service layer.
 type Deliverer interface {
-	Deliver(data model.SendEmailData) mailer.Outcome
+	DeliverOnce(data model.SendEmailData) mailer.Outcome
 }
 
 // errorResponse is returned for requests rejected before delivery (auth, size, malformed JSON).
@@ -42,7 +42,7 @@ func (h *emailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		data.ID = h.newID()
 	}
 
-	outcome := h.service.Deliver(data)
+	outcome := h.service.DeliverOnce(data)
 	writeJSON(w, statusFor(outcome), outcome.Event)
 }
 

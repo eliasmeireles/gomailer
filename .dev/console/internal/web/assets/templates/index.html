@@ -84,13 +84,27 @@
       <label class="check danger"><input type="checkbox" name="invalidBody"> Simular falha (corpo não base64)</label>
 
       <div class="actions">
-        <button type="submit" id="send-button">Publicar na fila</button>
+        <button type="submit" id="send-button">Enviar</button>
       </div>
     </form>
     <div id="result" aria-live="polite"></div>
   </section>
 
   <section class="side">
+    <div class="card">
+      <div class="card-head"><h2>Simular falhas</h2></div>
+      <p class="hint">Temporárias entram em retry (<code>MAILER_MAX_ATTEMPTS</code> tentativas); definitivas vão para o callback de falha ou para a DLQ.</p>
+      <div id="chaos" data-src="/partials/chaos"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Dead-letter queue</h2>
+        <button class="ghost" data-clear="/partials/dlq/purge" data-target="dlq">Esvaziar</button>
+      </div>
+      <div id="dlq" data-src="/partials/dlq" data-poll></div>
+    </div>
+
     <div class="card">
       <div class="card-head">
         <h2>Callbacks recebidos</h2>

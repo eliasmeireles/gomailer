@@ -35,6 +35,8 @@ services:
       MP_SMTP_TLS_KEY: /certs/server/mailpit-key.pem
       MP_SMTP_REQUIRE_TLS: "true"
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      # Chaos lets the console inject SMTP errors (4xx temporary, 5xx permanent).
+      MP_ENABLE_CHAOS: "true"
     ports:
       - "${MAILPIT_UI_PORT:-8025}:8025"
     volumes:
@@ -50,6 +52,14 @@ services:
     volumes:
       - ./callback/server.py:/app/server.py:ro
 
+  mockapi:
+    image: python:3.14-alpine3.24
+    command: ["python", "-u", "/app/server.py"]
+    ports:
+      - "${MOCKAPI_PORT:-9110}:9100"
+    volumes:
+      - ./mockapi/server.py:/app/server.py:ro
+
   mailer:
     build:
       context: ..
@@ -62,11 +72,17 @@ services:
         condition: service_started
       callback:
         condition: service_started
+      mockapi:
+        condition: service_started
     env_file:
       - env/${MAILER_ENV:-smtp}.env
     environment:
       MAILER_SOURCES: ${MAILER_SOURCES:-rabbitmq,http}
       HTTP_API_KEYS: ${HTTP_API_KEY:-dev-token}
+      # Short retries for local testing: 3 attempts, waiting 5s then 10s.
+      MAILER_MAX_ATTEMPTS: ${MAILER_MAX_ATTEMPTS:-3}
+      MAILER_RETRY_BASE_DELAY: ${MAILER_RETRY_BASE_DELAY:-5s}
+      MAILER_RETRY_MAX_DELAY: ${MAILER_RETRY_MAX_DELAY:-20s}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: guest
       RABBITMQ_PASS: guest

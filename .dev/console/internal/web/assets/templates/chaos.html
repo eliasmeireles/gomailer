@@ -1,0 +1,50 @@
+{{if .Error}}<div class="notice error">{{.Error}}</div>{{end}}
+<div class="chaos-grid">
+  <form data-action="/partials/chaos/smtp" data-target="chaos" class="chaos-block">
+    <h3>SMTP (Mailpit) <span class="hint">MAILER_ENV=smtp</span></h3>
+    {{if .SMTPError}}
+      <p class="empty">Mailpit indisponível: {{.SMTPError}}</p>
+    {{else}}
+      {{template "smtp-select" dict "Name" "sender" "Label" "Remetente (MAIL FROM)" "Trigger" .SMTP.Sender "Options" .EnvelopeOptions}}
+      {{template "smtp-select" dict "Name" "recipient" "Label" "Destinatário (RCPT TO)" "Trigger" .SMTP.Recipient "Options" .EnvelopeOptions}}
+      {{template "smtp-select" dict "Name" "authentication" "Label" "Autenticação" "Trigger" .SMTP.Authentication "Options" .AuthOptions}}
+      <button type="submit" class="ghost">Aplicar</button>
+    {{end}}
+  </form>
+
+  <form data-action="/partials/chaos/api" data-target="chaos" class="chaos-block">
+    <h3>API mock <span class="hint">MAILER_ENV=resend-mock</span></h3>
+    {{if .MockError}}
+      <p class="empty">API mock indisponível: {{.MockError}}</p>
+    {{else}}
+      <label>Cenário
+        <select name="preset">
+          {{range .Presets}}<option value="{{.Key}}" {{if eq .Behavior.Status $.Mock.Status}}selected{{end}}>{{.Label}} → {{.ExpectedErr}}</option>{{end}}
+        </select>
+      </label>
+      <label>Falhar as próximas
+        <input type="number" name="failNext" min="0" max="20" value="{{if .Mock.FailNext}}{{.Mock.FailNext}}{{else}}2{{end}}">
+      </label>
+      <button type="submit" class="ghost">Aplicar</button>
+      <p class="meta">
+        {{if .Mock.FailNext}}<span class="badge failed">falhando {{.Mock.FailNext}}× com {{.Mock.Status}}</span>{{else}}<span class="badge sent">aceitando</span>{{end}}
+        aceitos {{.Mock.Accepted}} · rejeitados {{.Mock.Rejected}}
+      </p>
+      {{range $i, $email := .Mock.Emails}}{{if lt $i 3}}
+        <div class="meta">✉ {{$email.Subject}} → {{join $email.To}}{{if $email.Cc}} · cc {{join $email.Cc}}{{end}}</div>
+      {{end}}{{end}}
+    {{end}}
+  </form>
+</div>
+<div class="actions">
+  <button class="ghost" data-clear="/partials/chaos/reset" data-target="chaos">Desligar todas as falhas</button>
+</div>
+
+{{define "smtp-select"}}
+<label>{{.Label}}
+  <select name="{{.Name}}">
+    <option value="0" {{if eq .Trigger.Probability 0}}selected{{end}}>desligado</option>
+    {{range .Options}}<option value="{{.Code}}" {{if and (gt $.Trigger.Probability 0) (eq .Code $.Trigger.ErrorCode)}}selected{{end}}>{{.Label}}</option>{{end}}
+  </select>
+</label>
+{{end}}

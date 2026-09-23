@@ -1,7 +1,10 @@
 package mailer
 
 import (
+	"errors"
+	"fmt"
 	"net"
+	"net/textproto"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,6 +36,24 @@ func TestSMTPSenderSend(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to establish TLS connection")
 		assert.Equal(t, model.CodeSMTPConnectionFailed, mailer.CodeOf(err))
+	})
+}
+
+func TestSMTPCode(t *testing.T) {
+	t.Run("given a 4xx reply then classify as temporary", func(t *testing.T) {
+		err := fmt.Errorf("wrapped: %w", &textproto.Error{Code: 451, Msg: "try again later"})
+
+		assert.Equal(t, model.CodeSMTPTemporaryFailure, smtpCode(model.CodeSMTPSenderRejected, err))
+	})
+
+	t.Run("given a 5xx reply then keep the step code", func(t *testing.T) {
+		err := &textproto.Error{Code: 550, Msg: "mailbox unavailable"}
+
+		assert.Equal(t, model.CodeSMTPReceiverRejected, smtpCode(model.CodeSMTPReceiverRejected, err))
+	})
+
+	t.Run("given a non-reply error then keep the step code", func(t *testing.T) {
+		assert.Equal(t, model.CodeSMTPAuthorizationDenied, smtpCode(model.CodeSMTPAuthorizationDenied, errors.New("auth failed")))
 	})
 }
 

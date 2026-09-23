@@ -2,6 +2,7 @@
 .env
 .dev/env/*.env
 !.dev/env/smtp.env
+!.dev/env/resend-mock.env
 
 # Build output
 /bin/

@@ -4,78 +4,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/eliasmeireles/gomailer/internal/core/mailer"
 )
 
 const (
-	envRabbitMQUser  = "RABBITMQ_USER"
-	envRabbitMQPass  = "RABBITMQ_PASS"
-	envRabbitMQHost  = "RABBITMQ_HOST"
-	envRabbitMQPort  = "RABBITMQ_PORT"
-	envRabbitMQVHost = "RABBITMQ_VHOST"
-	envRabbitMQQueue = "RABBITMQ_QUEUE"
-
-	defaultRabbitMQPort  = "5672"
-	defaultRabbitMQVHost = "/"
-	defaultRabbitMQQueue = "mailer-service"
-
 	initialBackoff = 1 * time.Second
 	maxBackoff     = 30 * time.Second
 )
 
-// RabbitMQConfig holds the RabbitMQ connection configuration.
-type RabbitMQConfig struct {
-	URL   string
-	Queue string
-}
-
-// NewRabbitMQConfig creates a RabbitMQConfig from environment variables.
-// Credentials (RABBITMQ_USER, RABBITMQ_PASS) are required.
-func NewRabbitMQConfig() RabbitMQConfig {
-	user := getRequiredEnv(envRabbitMQUser)
-	pass := getRequiredEnv(envRabbitMQPass)
-	host := getRequiredEnv(envRabbitMQHost)
-	port := getEnvOrDefault(envRabbitMQPort, defaultRabbitMQPort)
-	vhost := getEnvOrDefault(envRabbitMQVHost, defaultRabbitMQVHost)
-	queue := getEnvOrDefault(envRabbitMQQueue, defaultRabbitMQQueue)
-
-	if vhost != "" && vhost[0] != '/' {
-		vhost = "/" + vhost
-	}
-
-	url := fmt.Sprintf("amqp://%s:%s@%s:%s%s", user, pass, host, port, vhost)
-
-	return RabbitMQConfig{
-		URL:   url,
-		Queue: queue,
-	}
-}
-
-func getRequiredEnv(key string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		log.Fatalf("Required environment variable %s is not set", key)
-	}
-	return value
-}
-
-func getEnvOrDefault(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	return value
-}
-
-// Consumer is a RabbitMQ consumer with retry-on-connect and auto-reconnect on drop.
+// Consumer is a RabbitMQ consumer with retry-on-connect, auto-reconnect on drop, delayed
+// retries and a dead-letter queue (see topology).
 type Consumer struct {
-	config RabbitMQConfig
+	config   RabbitMQConfig
+	topology topology
 
 	mu      sync.Mutex
 	conn    *amqp.Connection
@@ -83,9 +31,9 @@ type Consumer struct {
 	ready   atomic.Bool
 }
 
-// NewConsumer creates a new RabbitMQ Consumer.
-func NewConsumer(config RabbitMQConfig) *Consumer {
-	return &Consumer{config: config}
+// NewConsumer creates a Consumer whose retry queues follow policy.
+func NewConsumer(config RabbitMQConfig, policy mailer.RetryPolicy) *Consumer {
+	return &Consumer{config: config, topology: newTopology(config.Queue, policy.Delays())}
 }
 
 // Ready reports whether the consumer has an open connection and channel.
@@ -106,10 +54,7 @@ func (c *Consumer) Connect(ctx context.Context) error {
 				return ctx.Err()
 			case <-time.After(backoff):
 			}
-			backoff *= 2
-			if backoff > maxBackoff {
-				backoff = maxBackoff
-			}
+			backoff = min(backoff*2, maxBackoff)
 			continue
 		}
 		c.ready.Store(true)
@@ -123,17 +68,10 @@ func (c *Consumer) dialAndOpen() error {
 		return fmt.Errorf("dial: %w", err)
 	}
 
-	ch, err := conn.Channel()
+	ch, err := c.openChannel(conn)
 	if err != nil {
 		_ = conn.Close()
-		return fmt.Errorf("open channel: %w", err)
-	}
-
-	_, err = ch.QueueDeclare(c.config.Queue, true, false, false, false, nil)
-	if err != nil {
-		_ = ch.Close()
-		_ = conn.Close()
-		return fmt.Errorf("declare queue %s: %w", c.config.Queue, err)
+		return err
 	}
 
 	c.mu.Lock()
@@ -141,13 +79,32 @@ func (c *Consumer) dialAndOpen() error {
 	c.channel = ch
 	c.mu.Unlock()
 
-	log.Infof("Connected to RabbitMQ, queue: %s", c.config.Queue)
+	log.Infof("Connected to RabbitMQ, queue: %s, retry queues: %v, dead-letter: %s",
+		c.topology.queue, c.topology.retryQueues(), c.topology.deadLetter)
 	return nil
+}
+
+// openChannel opens a channel in confirm mode (retries and dead letters are republished with
+// broker confirmation) and declares the topology.
+func (c *Consumer) openChannel(conn *amqp.Connection) (*amqp.Channel, error) {
+	ch, err := conn.Channel()
+	if err != nil {
+		return nil, fmt.Errorf("open channel: %w", err)
+	}
+	if err := ch.Confirm(false); err != nil {
+		_ = ch.Close()
+		return nil, fmt.Errorf("enable publisher confirms: %w", err)
+	}
+	if err := c.topology.declare(ch); err != nil {
+		_ = ch.Close()
+		return nil, err
+	}
+	return ch, nil
 }
 
 // Consume runs the handler for each delivery, blocking until ctx is cancelled.
 // On disconnect, marks the consumer as not-ready, reconnects with backoff, and resumes.
-func (c *Consumer) Consume(ctx context.Context, handler func(body []byte) error) error {
+func (c *Consumer) Consume(ctx context.Context, handler Handler) error {
 	for {
 		err := c.consumeLoop(ctx, handler)
 		if ctx.Err() != nil {
@@ -161,7 +118,7 @@ func (c *Consumer) Consume(ctx context.Context, handler func(body []byte) error)
 	}
 }
 
-func (c *Consumer) consumeLoop(ctx context.Context, handler func(body []byte) error) error {
+func (c *Consumer) consumeLoop(ctx context.Context, handler Handler) error {
 	c.mu.Lock()
 	ch := c.channel
 	conn := c.conn
@@ -192,16 +149,8 @@ func (c *Consumer) consumeLoop(ctx context.Context, handler func(body []byte) er
 			if !ok {
 				return errors.New("messages channel closed")
 			}
-			if err := handler(msg.Body); err != nil {
-				log.Errorf("Failed to process message: %v", err)
-				if nackErr := msg.Nack(false, true); nackErr != nil {
-					log.Errorf("Failed to nack message: %v", nackErr)
-				}
-				continue
-			}
-			if err := msg.Ack(false); err != nil {
-				log.Errorf("Failed to ack message: %v", err)
-			}
+			attempt := attemptOf(msg.Headers)
+			c.apply(ch, msg, attempt, handler(msg.Body, attempt))
 		}
 	}
 }

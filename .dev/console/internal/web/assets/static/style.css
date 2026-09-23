@@ -11,6 +11,8 @@
   --ok-text: #1e6b34;
   --bad-bg: #fdecea;
   --bad-text: #a1261b;
+  --warn-bg: #fff4e0;
+  --warn-text: #8a5300;
   --radius: 10px;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: light;
@@ -30,6 +32,8 @@
     --ok-text: #8fd6a3;
     --bad-bg: #3a1a17;
     --bad-text: #f5a39b;
+    --warn-bg: #3a2c12;
+    --warn-text: #f2c27b;
     color-scheme: dark;
   }
 }
@@ -80,6 +84,7 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 .pill strong { color: var(--text); }
 .pill.ok { background: var(--ok-bg); color: var(--ok-text); border-color: transparent; }
 .pill.bad { background: var(--bad-bg); color: var(--bad-text); border-color: transparent; }
+.pill.warn { background: var(--warn-bg); color: var(--warn-text); border-color: transparent; }
 
 .layout {
   display: grid;
@@ -191,7 +196,25 @@ button.ghost, a.ghost {
 .badge.sent { background: var(--ok-bg); color: var(--ok-text); }
 .badge.failed { background: var(--bad-bg); color: var(--bad-text); }
 .error-code { color: var(--bad-text); }
+.chaos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+.chaos-block { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; gap: 8px; }
+.chaos-block h3 { margin: 0; font-size: 0.9rem; display: flex; justify-content: space-between; gap: 6px; }
+select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
 .empty { color: var(--muted); font-size: 0.9rem; margin: 8px 0 0; }
+
+@media (max-width: 1200px) {
+  .chaos-grid { grid-template-columns: 1fr; }
+}
 
 @media (max-width: 960px) {
   .layout { grid-template-columns: 1fr; padding: 16px; }

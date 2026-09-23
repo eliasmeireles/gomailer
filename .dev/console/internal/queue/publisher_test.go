@@ -27,11 +27,4 @@ func TestPublisher(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "connect to RabbitMQ")
 	})
-
-	t.Run("given an unreachable broker then stats returns a connection error", func(t *testing.T) {
-		_, err := NewPublisher(unreachableURL(t), "mailer-service").Stats(context.Background())
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "connect to RabbitMQ")
-	})
 }

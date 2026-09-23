@@ -11,38 +11,17 @@ import (
 	"github.com/eliasmeireles/gomailer/dev/console/internal/api"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/message"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/monitor"
-	"github.com/eliasmeireles/gomailer/dev/console/internal/queue"
 )
 
 type fakePublisher struct {
 	published []message.Email
 	err       error
-	stats     queue.Stats
-	statsErr  error
 }
 
 func (f *fakePublisher) Publish(_ context.Context, email message.Email) error {
 	f.published = append(f.published, email)
 	return f.err
 }
-
-func (f *fakePublisher) Stats(context.Context) (queue.Stats, error) { return f.stats, f.statsErr }
-
-type fakeInbox struct {
-	messages []monitor.InboxMessage
-	cleared  bool
-}
-
-func (f *fakeInbox) List(context.Context) ([]monitor.InboxMessage, error) { return f.messages, nil }
-func (f *fakeInbox) Clear(context.Context) error                          { f.cleared = true; return nil }
-
-type fakeCallbacks struct {
-	events  []monitor.CallbackEvent
-	cleared bool
-}
-
-func (f *fakeCallbacks) List(context.Context) ([]monitor.CallbackEvent, error) { return f.events, nil }
-func (f *fakeCallbacks) Clear(context.Context) error                           { f.cleared = true; return nil }
 
 type fakeAPI struct {
 	sent     []message.Email
@@ -55,71 +34,146 @@ func (f *fakeAPI) Send(_ context.Context, email message.Email) (api.Response, er
 	return f.response, f.err
 }
 
+type fakeQueues struct {
+	stats    monitor.QueueStats
+	statsErr error
+	letters  []monitor.DeadLetter
+	purged   bool
+}
+
+func (f *fakeQueues) Stats(context.Context) (monitor.QueueStats, error) { return f.stats, f.statsErr }
+func (f *fakeQueues) PeekDeadLetters(context.Context) ([]monitor.DeadLetter, error) {
+	return f.letters, nil
+}
+func (f *fakeQueues) PurgeDeadLetters(context.Context) error { f.purged = true; return nil }
+
+type fakeInbox struct {
+	messages []monitor.InboxMessage
+	cleared  bool
+}
+
+func (f *fakeInbox) List(context.Context) ([]monitor.InboxMessage, error) { return f.messages, nil }
+func (f *fakeInbox) Clear(context.Context) error                          { f.cleared = true; return nil }
+
+type fakeSMTPChaos struct {
+	triggers monitor.ChaosTriggers
+	err      error
+	setErr   error
+}
+
+func (f *fakeSMTPChaos) Chaos(context.Context) (monitor.ChaosTriggers, error) {
+	return f.triggers, f.err
+}
+func (f *fakeSMTPChaos) SetChaos(_ context.Context, triggers monitor.ChaosTriggers) (monitor.ChaosTriggers, error) {
+	f.triggers = triggers
+	return triggers, f.setErr
+}
+
+type fakeMockAPI struct {
+	state    monitor.MockState
+	err      error
+	resetErr error
+	reset    bool
+}
+
+func (f *fakeMockAPI) State(context.Context) (monitor.MockState, error) { return f.state, f.err }
+func (f *fakeMockAPI) Configure(_ context.Context, behavior monitor.MockBehavior) (monitor.MockState, error) {
+	f.state.MockBehavior = behavior
+	return f.state, f.err
+}
+func (f *fakeMockAPI) Reset(context.Context) error { f.reset = true; return f.resetErr }
+
+type fakeCallbacks struct {
+	events  []monitor.CallbackEvent
+	cleared bool
+}
+
+func (f *fakeCallbacks) List(context.Context) ([]monitor.CallbackEvent, error) { return f.events, nil }
+func (f *fakeCallbacks) Clear(context.Context) error                           { f.cleared = true; return nil }
+
 type fakeHealth struct{ ready bool }
 
 func (f fakeHealth) Ready(context.Context) bool { return f.ready }
+
+type fakes struct {
+	publisher *fakePublisher
+	api       *fakeAPI
+	queues    *fakeQueues
+	inbox     *fakeInbox
+	chaos     *fakeSMTPChaos
+	mock      *fakeMockAPI
+	callbacks *fakeCallbacks
+}
+
+func newFakes() *fakes {
+	return &fakes{&fakePublisher{}, &fakeAPI{}, &fakeQueues{}, &fakeInbox{}, &fakeSMTPChaos{}, &fakeMockAPI{}, &fakeCallbacks{}}
+}
+
+func (f *fakes) console(ready bool) *Console {
+	return NewConsole(Dependencies{
+		Publisher: f.publisher, API: f.api, Queues: f.queues, Inbox: f.inbox, SMTPChaos: f.chaos,
+		MockAPI: f.mock, Callbacks: f.callbacks, Health: fakeHealth{ready: ready}, NewID: func() string { return "id-1" },
+	})
+}
 
 func validForm() message.Form {
 	return message.Form{From: "no-reply@exemplo.com.br", To: "maria@exemplo.com.br", Subject: "Oi", HTML: "<p>Oi</p>", Format: message.FormatArray}
 }
 
-func newTestConsole(publisher *fakePublisher, inbox *fakeInbox, callbacks *fakeCallbacks, ready bool) *Console {
-	return NewConsole(publisher, &fakeAPI{}, inbox, callbacks, fakeHealth{ready: ready}, func() string { return "id-1" })
-}
-
 func TestConsoleSend(t *testing.T) {
 	t.Run("given a valid form without channel then publish to rabbitmq", func(t *testing.T) {
-		publisher := &fakePublisher{}
+		f := newFakes()
 
-		result, err := newTestConsole(publisher, &fakeInbox{}, &fakeCallbacks{}, true).Send(context.Background(), validForm())
+		result, err := f.console(true).Send(context.Background(), validForm())
 
 		require.NoError(t, err)
 		assert.Equal(t, "id-1", result.Email.ID)
 		assert.Equal(t, message.ChannelRabbitMQ, result.Channel)
 		assert.Nil(t, result.Response)
-		assert.Equal(t, []message.Email{result.Email}, publisher.published)
+		assert.Equal(t, []message.Email{result.Email}, f.publisher.published)
 	})
 
 	t.Run("given the http channel then call the api and return its response", func(t *testing.T) {
-		publisher := &fakePublisher{}
-		client := &fakeAPI{response: api.Response{StatusCode: 200}}
-		console := NewConsole(publisher, client, &fakeInbox{}, &fakeCallbacks{}, fakeHealth{}, func() string { return "id-1" })
+		f := newFakes()
+		f.api.response = api.Response{StatusCode: 200}
 		form := validForm()
 		form.Channel = message.ChannelHTTP
 
-		result, err := console.Send(context.Background(), form)
+		result, err := f.console(true).Send(context.Background(), form)
 
 		require.NoError(t, err)
 		assert.Equal(t, &api.Response{StatusCode: 200}, result.Response)
-		assert.Len(t, client.sent, 1)
-		assert.Empty(t, publisher.published)
+		assert.Len(t, f.api.sent, 1)
+		assert.Empty(t, f.publisher.published)
 	})
 
 	t.Run("given an api error then return it", func(t *testing.T) {
-		console := NewConsole(&fakePublisher{}, &fakeAPI{err: errors.New("mailer down")}, &fakeInbox{}, &fakeCallbacks{}, fakeHealth{}, func() string { return "id-1" })
+		f := newFakes()
+		f.api.err = errors.New("mailer down")
 		form := validForm()
 		form.Channel = message.ChannelHTTP
 
-		_, err := console.Send(context.Background(), form)
+		_, err := f.console(true).Send(context.Background(), form)
 
 		require.EqualError(t, err, "mailer down")
 	})
 
 	t.Run("given an invalid form then return error without publishing", func(t *testing.T) {
-		publisher := &fakePublisher{}
+		f := newFakes()
 		form := validForm()
 		form.From = ""
 
-		_, err := newTestConsole(publisher, &fakeInbox{}, &fakeCallbacks{}, true).Send(context.Background(), form)
+		_, err := f.console(true).Send(context.Background(), form)
 
 		require.Error(t, err)
-		assert.Empty(t, publisher.published)
+		assert.Empty(t, f.publisher.published)
 	})
 
 	t.Run("given a publish error then return it", func(t *testing.T) {
-		publisher := &fakePublisher{err: errors.New("broker down")}
+		f := newFakes()
+		f.publisher.err = errors.New("broker down")
 
-		_, err := newTestConsole(publisher, &fakeInbox{}, &fakeCallbacks{}, true).Send(context.Background(), validForm())
+		_, err := f.console(true).Send(context.Background(), validForm())
 
 		require.EqualError(t, err, "broker down")
 	})
@@ -127,38 +181,43 @@ func TestConsoleSend(t *testing.T) {
 
 func TestConsoleStatus(t *testing.T) {
 	t.Run("given a ready mailer and queue stats then report both", func(t *testing.T) {
-		publisher := &fakePublisher{stats: queue.Stats{Messages: 2, Consumers: 1}}
+		f := newFakes()
+		f.queues.stats = monitor.QueueStats{Messages: 2, Consumers: 1, Retrying: 3, DeadLettered: 1}
 
-		status := newTestConsole(publisher, &fakeInbox{}, &fakeCallbacks{}, true).Status(context.Background())
-
-		assert.Equal(t, Status{MailerReady: true, Queue: queue.Stats{Messages: 2, Consumers: 1}}, status)
+		assert.Equal(t, Status{MailerReady: true, Queue: f.queues.stats}, f.console(true).Status(context.Background()))
 	})
 
 	t.Run("given a queue error then report it", func(t *testing.T) {
-		publisher := &fakePublisher{statsErr: errors.New("connect to RabbitMQ: refused")}
+		f := newFakes()
+		f.queues.statsErr = errors.New("management api down")
 
-		status := newTestConsole(publisher, &fakeInbox{}, &fakeCallbacks{}, false).Status(context.Background())
-
-		assert.Equal(t, Status{QueueError: "connect to RabbitMQ: refused"}, status)
+		assert.Equal(t, Status{QueueError: "management api down"}, f.console(false).Status(context.Background()))
 	})
 }
 
 func TestConsolePanels(t *testing.T) {
-	t.Run("must delegate inbox and callbacks listing and clearing", func(t *testing.T) {
-		inbox := &fakeInbox{messages: []monitor.InboxMessage{{ID: "m1"}}}
-		callbacks := &fakeCallbacks{events: []monitor.CallbackEvent{{Path: "/failures"}}}
-		console := newTestConsole(&fakePublisher{}, inbox, callbacks, true)
+	t.Run("must delegate listing and clearing of inbox, callbacks and dead letters", func(t *testing.T) {
+		f := newFakes()
+		f.inbox.messages = []monitor.InboxMessage{{ID: "m1"}}
+		f.callbacks.events = []monitor.CallbackEvent{{Path: "/failures"}}
+		f.queues.letters = []monitor.DeadLetter{{MessageID: "d1"}}
+		console := f.console(true)
 
 		messages, err := console.Inbox(context.Background())
 		require.NoError(t, err)
 		events, err := console.Callbacks(context.Background())
 		require.NoError(t, err)
+		letters, err := console.DeadLetters(context.Background())
+		require.NoError(t, err)
 		require.NoError(t, console.ClearInbox(context.Background()))
 		require.NoError(t, console.ClearCallbacks(context.Background()))
+		require.NoError(t, console.PurgeDeadLetters(context.Background()))
 
-		assert.Equal(t, inbox.messages, messages)
-		assert.Equal(t, callbacks.events, events)
-		assert.True(t, inbox.cleared)
-		assert.True(t, callbacks.cleared)
+		assert.Equal(t, f.inbox.messages, messages)
+		assert.Equal(t, f.callbacks.events, events)
+		assert.Equal(t, f.queues.letters, letters)
+		assert.True(t, f.inbox.cleared)
+		assert.True(t, f.callbacks.cleared)
+		assert.True(t, f.queues.purged)
 	})
 }

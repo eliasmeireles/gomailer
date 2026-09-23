@@ -11,6 +11,10 @@ type Config struct {
 	Port               string
 	RabbitMQURL        string
 	Queue              string
+	RabbitMQAPIURL     string
+	RabbitMQUser       string
+	RabbitMQPass       string
+	MockAPIURL         string
 	MailpitURL         string
 	MailpitPublicURL   string
 	CallbackServerURL  string
@@ -28,6 +32,10 @@ func Load() Config {
 		Port:               envOrDefault("CONSOLE_PORT", "8080"),
 		RabbitMQURL:        envOrDefault("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"),
 		Queue:              envOrDefault("RABBITMQ_QUEUE", "mailer-service"),
+		RabbitMQAPIURL:     trimSlash(envOrDefault("RABBITMQ_API_URL", "http://rabbitmq:15672")),
+		RabbitMQUser:       envOrDefault("RABBITMQ_USER", "guest"),
+		RabbitMQPass:       envOrDefault("RABBITMQ_PASS", "guest"),
+		MockAPIURL:         trimSlash(envOrDefault("MOCK_API_URL", "http://mockapi:9100")),
 		MailpitURL:         trimSlash(envOrDefault("MAILPIT_URL", "http://mailpit:8025")),
 		MailpitPublicURL:   trimSlash(envOrDefault("MAILPIT_PUBLIC_URL", "http://localhost:8025")),
 		CallbackServerURL:  trimSlash(envOrDefault("CALLBACK_SERVER_URL", "http://callback:9099")),
