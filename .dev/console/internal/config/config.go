@@ -17,6 +17,8 @@ type Config struct {
 	CallbackSuccessURL string
 	CallbackFailureURL string
 	MailerHealthURL    string
+	MailerAPIURL       string
+	MailerAPIKey       string
 	MailerEnv          string
 }
 
@@ -32,6 +34,8 @@ func Load() Config {
 		CallbackSuccessURL: envOrDefault("CALLBACK_SUCCESS_URL", "http://callback:9099/success"),
 		CallbackFailureURL: envOrDefault("CALLBACK_FAILURE_URL", "http://callback:9099/failures"),
 		MailerHealthURL:    envOrDefault("MAILER_HEALTH_URL", "http://mailer:8080/readyz"),
+		MailerAPIURL:       trimSlash(envOrDefault("MAILER_API_URL", "http://mailer:8081")),
+		MailerAPIKey:       envOrDefault("MAILER_API_KEY", "dev-token"),
 		MailerEnv:          envOrDefault("MAILER_ENV", "smtp"),
 	}
 }

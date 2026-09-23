@@ -22,7 +22,7 @@ var assets embed.FS
 
 // ConsoleService is what the handlers need from the service layer.
 type ConsoleService interface {
-	Send(ctx context.Context, form message.Form) (message.Email, error)
+	Send(ctx context.Context, form message.Form) (service.SendResult, error)
 	Status(ctx context.Context) service.Status
 	Inbox(ctx context.Context) ([]monitor.InboxMessage, error)
 	ClearInbox(ctx context.Context) error

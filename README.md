@@ -3,11 +3,11 @@
 [![CI](https://github.com/eliasmeireles/gomailer/actions/workflows/ci.yml/badge.svg)](https://github.com/eliasmeireles/gomailer/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A lightweight Go worker that consumes email requests from RabbitMQ and delivers them through SMTP or a provider HTTP API (Resend, Zoho Mail, ZeptoMail), reporting the outcome to optional success/failure callbacks.
+A lightweight Go email service that receives requests from RabbitMQ or an HTTP API and delivers them through SMTP or a provider HTTP API (Resend, Zoho Mail, ZeptoMail), reporting the outcome to optional success/failure callbacks.
 
 ## Features
 
-- **Queue-driven**: consumes JSON messages from a RabbitMQ queue with auto-reconnect and exponential backoff
+- **Multiple sources**: RabbitMQ queue (auto-reconnect with backoff) and a synchronous HTTP API (`POST /v1/emails`), enabled together or alone
 - **Pluggable transports**: SMTP (implicit TLS) or HTTP API clients selected by configuration
 - **API clients**: `resend`, `zoho` (Zoho Mail API, OAuth 2.0) and `zeptomail`, with a registry for adding new ones
 - **Delivery callbacks**: optional per-message success and failure callbacks with the email `id`, `subject`, status and cause
@@ -18,11 +18,14 @@ A lightweight Go worker that consumes email requests from RabbitMQ and delivers 
 ## How It Works
 
 ```
-producer ──► RabbitMQ (mailer-service) ──► MailerConsumer ──► mailer.Service ──► Sender (smtp | resend | zoho | zeptomail)
+producer ──► RabbitMQ (mailer-service) ──► MailerConsumer ──┐
+client   ──► POST /v1/emails (HTTP API) ───────────────────┴──► mailer.Service ──► Sender (smtp | resend | zoho | zeptomail)
                                                                    │
                                                                    ├── on success ──► DeliveryNotifier ──► callback.success.url
                                                                    └── on failure ──► DeliveryNotifier ──► callback.failure.url
 ```
+
+Every source uses the same message contract, callbacks and error codes. RabbitMQ handles outcomes as follows:
 
 | Outcome | Queue action |
 |---|---|
@@ -116,7 +119,44 @@ Failure events carry a stable `errorCode` for programmatic handling; `cause` kee
 
 API codes are normalized across providers from their documented errors (Resend error names, ZeptoMail `TM_`/`SM_` codes, Zoho Mail responses), falling back to the HTTP status.
 
+## HTTP API
+
+Enable it with `MAILER_SOURCES=http` (or `rabbitmq,http`). The request body is the same [queue message](#queue-message); the email is delivered synchronously and the response body is the delivery event.
+
+```bash
+curl -X POST http://localhost:8081/v1/emails \
+  -H "Authorization: Bearer $HTTP_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"pedido-123","from":"no-reply@exemplo.com.br","receiver":["maria@exemplo.com.br"],"subject":"Olá","body":"PGgxPk9sw6E8L2gxPg=="}'
+```
+
+```json
+{ "id": "pedido-123", "subject": "Olá", "status": "sent", "occurredAt": "2026-09-23T12:00:00Z" }
+```
+
+| Status | When |
+|---|---|
+| `200` | Sent |
+| `400` | `message_*` error codes, or malformed JSON |
+| `401` | Missing or invalid Bearer token |
+| `413` | Body larger than `HTTP_API_MAX_BODY_BYTES` |
+| `422` | Rejected by the provider (`api_invalid_receiver`, `api_sender_not_allowed`, `smtp_receiver_rejected`...) |
+| `429` | `api_rate_limited` |
+| `503` | Provider unreachable or unavailable (`*_connection_failed`, `api_provider_unavailable`) |
+| `502` | Credentials rejected or unexpected provider response |
+
+Requests without `id` get a generated UUID, returned in the response. Callbacks in the body are honored as with the queue. The endpoint always requires a Bearer token: the service refuses to start the HTTP source without `HTTP_API_KEYS`. Expose it only to trusted clients (it sends email from your domain).
+
 ## Configuration
+
+### Sources
+
+| Variable | Default | Description |
+|---|---|---|
+| `MAILER_SOURCES` | `rabbitmq` | Comma-separated sources to enable: `rabbitmq`, `http` |
+| `HTTP_API_PORT` | `8081` | HTTP source port |
+| `HTTP_API_KEYS` | — | Required for `http`: comma-separated accepted Bearer tokens |
+| `HTTP_API_MAX_BODY_BYTES` | `26214400` | Max request body (25 MiB) |
 
 ### Transport
 
@@ -178,7 +218,7 @@ Getting the credentials:
 | `RABBITMQ_USER` / `RABBITMQ_PASS` | — | Credentials |
 | `RABBITMQ_VHOST` | `/` | Virtual host |
 | `RABBITMQ_QUEUE` | `mailer-service` | Queue consumed (declared durable) |
-| `HEALTH_PORT` | `8080` | Port for `/healthz` and `/readyz` |
+| `HEALTH_PORT` | `8080` | Port for `/healthz` and `/readyz` (ready when every enabled source is ready) |
 
 ## Adding a New API Client
 
@@ -218,7 +258,8 @@ To build and push your own multi-arch image: `make build IMAGE=<registry>/<name>
 gomailer is configured only through environment variables, so it runs anywhere containers run. In Kubernetes:
 
 - Store credentials (`SMTP_SERVER_PASS`, `RESEND_API_KEY`, `ZOHO_*`, `ZEPTOMAIL_API_KEY`, `RABBITMQ_PASS`) in a Secret or an external secret manager, and the rest in plain env vars.
-- Use `/healthz` as the liveness probe and `/readyz` (RabbitMQ connected) as the readiness/startup probe on `HEALTH_PORT`.
+- Use `/healthz` as the liveness probe and `/readyz` (every enabled source ready) as the readiness/startup probe on `HEALTH_PORT`.
+- When the HTTP source is enabled, keep its Service internal or behind an authenticated gateway, and store `HTTP_API_KEYS` as a secret.
 - Run a single transport per deployment; switch transports by changing `MAILER_TRANSPORT` / `MAILER_API_CLIENT`.
 
 ## Contributing

@@ -6,14 +6,17 @@ import (
 	"net/http"
 
 	"github.com/eliasmeireles/gomailer/dev/console/internal/message"
+	"github.com/eliasmeireles/gomailer/dev/console/internal/service"
 )
 
 const maxUploadBytes = 20 << 20
 
 type resultData struct {
-	Email   message.Email
+	Result  service.SendResult
 	Payload string
-	Error   string
+	// Response is the HTTP source answer rendered as JSON (HTTP channel only).
+	Response string
+	Error    string
 }
 
 func (s *Server) send(w http.ResponseWriter, r *http.Request) {
@@ -23,12 +26,16 @@ func (s *Server) send(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email, err := s.console.Send(r.Context(), form)
+	result, err := s.console.Send(r.Context(), form)
 	if err != nil {
 		s.render(w, "result.html", resultData{Error: err.Error()}, http.StatusUnprocessableEntity)
 		return
 	}
-	s.render(w, "result.html", resultData{Email: email, Payload: previewJSON(email)}, http.StatusOK)
+	s.render(w, "result.html", resultData{
+		Result:   result,
+		Payload:  previewJSON(result.Email),
+		Response: responseJSON(result.Response),
+	}, http.StatusOK)
 }
 
 func parseForm(r *http.Request) (message.Form, error) {
@@ -42,6 +49,7 @@ func parseForm(r *http.Request) (message.Form, error) {
 	}
 
 	return message.Form{
+		Channel:                message.Channel(r.FormValue("channel")),
 		ID:                     r.FormValue("id"),
 		From:                   r.FormValue("from"),
 		To:                     r.FormValue("to"),

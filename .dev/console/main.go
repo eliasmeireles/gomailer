@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/eliasmeireles/gomailer/dev/console/internal/api"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/config"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/message"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/monitor"
@@ -20,6 +21,7 @@ func main() {
 
 	console := service.NewConsole(
 		queue.NewPublisher(cfg.RabbitMQURL, cfg.Queue),
+		api.NewClient(cfg.MailerAPIURL, cfg.MailerAPIKey),
 		monitor.NewMailpit(cfg.MailpitURL),
 		monitor.NewCallbacks(cfg.CallbackServerURL),
 		monitor.NewHealth(cfg.MailerHealthURL),

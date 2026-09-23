@@ -19,12 +19,17 @@ func NewMailerConsumer(service mailer.Service) *MailerConsumer {
 }
 
 // Handle unmarshals a raw message body into SendEmailData and hands it to the mailer service.
-// A returned error makes the message be requeued.
+// A returned error makes the message be requeued; handled outcomes (sent, or failure accepted
+// by the failure callback) return nil.
 func (c *MailerConsumer) Handle(body []byte) error {
 	var data model.SendEmailData
 	if err := json.Unmarshal(body, &data); err != nil {
 		return fmt.Errorf("failed to unmarshal email message: %w", err)
 	}
 
-	return c.service.Deliver(data)
+	outcome := c.service.Deliver(data)
+	if outcome.Handled {
+		return nil
+	}
+	return outcome.Err
 }

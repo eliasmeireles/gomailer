@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eliasmeireles/gomailer/dev/console/internal/api"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/message"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/monitor"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/queue"
@@ -29,14 +30,21 @@ type fakeConsole struct {
 	listErr       error
 	inboxCleared  bool
 	eventsCleared bool
+	response      *api.Response
 }
 
-func (f *fakeConsole) Send(_ context.Context, form message.Form) (message.Email, error) {
+func (f *fakeConsole) Send(_ context.Context, form message.Form) (service.SendResult, error) {
 	f.sentForm = form
 	if f.sendErr != nil {
-		return message.Email{}, f.sendErr
+		return service.SendResult{}, f.sendErr
 	}
-	return message.Build(form, func() string { return "id-gerado" })
+	email, err := message.Build(form, func() string { return "id-gerado" })
+	result := service.SendResult{Email: email, Channel: message.ChannelRabbitMQ}
+	if form.Channel == message.ChannelHTTP {
+		result.Channel = message.ChannelHTTP
+		result.Response = f.response
+	}
+	return result, err
 }
 
 func (f *fakeConsole) Status(context.Context) service.Status { return f.status }
@@ -136,7 +144,7 @@ func TestSend(t *testing.T) {
 		response := serve(newTestServer(t, console, "smtp"), req)
 
 		assert.Equal(t, http.StatusOK, response.Code)
-		assert.Contains(t, response.Body.String(), "Publicado na fila")
+		assert.Contains(t, response.Body.String(), "Publicado na fila (rabbitmq)")
 		assert.Contains(t, response.Body.String(), "id-gerado")
 		assert.Equal(t, message.FormatString, console.sentForm.Format)
 		assert.Equal(t, "joao@exemplo.com.br", console.sentForm.Cc)
@@ -147,6 +155,32 @@ func TestSend(t *testing.T) {
 		require.Len(t, console.sentForm.Files, 1)
 		assert.Equal(t, "nota.txt", console.sentForm.Files[0].Name)
 		assert.Equal(t, []byte("conteudo"), console.sentForm.Files[0].Content)
+	})
+
+	t.Run("given the http channel then render the api response", func(t *testing.T) {
+		console := &fakeConsole{response: &api.Response{StatusCode: 422, Event: monitor.DeliveryEvent{
+			ID: "id-gerado", Status: "failed", ErrorCode: "api_invalid_receiver", Cause: "invalid to",
+		}}}
+		req := multipartRequest(t, map[string]string{
+			"channel": "http", "from": "no-reply@exemplo.com.br", "to": "maria@exemplo.com.br", "subject": "Oi", "html": "<p>Oi</p>",
+		}, "", "")
+
+		response := serve(newTestServer(t, console, "smtp"), req)
+
+		assert.Equal(t, message.ChannelHTTP, console.sentForm.Channel)
+		assert.Contains(t, response.Body.String(), "HTTP 422 · api_invalid_receiver")
+		assert.Contains(t, response.Body.String(), "Resposta da API")
+	})
+
+	t.Run("given the http channel and a sent answer then render success", func(t *testing.T) {
+		console := &fakeConsole{response: &api.Response{StatusCode: 200, Event: monitor.DeliveryEvent{ID: "id-gerado", Status: "sent"}}}
+		req := multipartRequest(t, map[string]string{
+			"channel": "http", "from": "no-reply@exemplo.com.br", "to": "maria@exemplo.com.br", "subject": "Oi", "html": "<p>Oi</p>",
+		}, "", "")
+
+		body := serve(newTestServer(t, console, "smtp"), req).Body.String()
+
+		assert.Contains(t, body, "HTTP 200 · enviado")
 	})
 
 	t.Run("given a service error then render it with 422", func(t *testing.T) {
@@ -254,6 +288,20 @@ func TestPanels(t *testing.T) {
 
 		assert.True(t, console.inboxCleared)
 		assert.True(t, console.eventsCleared)
+	})
+}
+
+func TestResponseJSON(t *testing.T) {
+	t.Run("given no response then return empty", func(t *testing.T) {
+		assert.Empty(t, responseJSON(nil))
+	})
+
+	t.Run("given a raw body then return it", func(t *testing.T) {
+		assert.Equal(t, `{"error":"x"}`, responseJSON(&api.Response{StatusCode: 401, Raw: `{"error":"x"}`}))
+	})
+
+	t.Run("given an event then render it as json", func(t *testing.T) {
+		assert.Contains(t, responseJSON(&api.Response{Event: monitor.DeliveryEvent{ID: "1", Status: "sent"}}), `"status": "sent"`)
 	})
 }
 

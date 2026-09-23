@@ -12,17 +12,16 @@ import (
 	"github.com/eliasmeireles/gomailer/internal/core/model"
 )
 
-// Service delivers queued email messages and reports the outcome to the optional callbacks.
+// Service delivers email requests and reports the outcome to the optional callbacks.
 type Service interface {
 	// Deliver decodes the base64 body and sends the email.
 	//
 	// On success, callback.success (if any) is notified; a failing success callback is only
-	// logged, since the email was already sent and must not be requeued.
+	// logged, since the email was already sent and must not be sent again.
 	//
-	// On failure, callback.failure (if any) is notified. If it succeeds the failure is
-	// considered handled and Deliver returns nil; otherwise the delivery error (joined with the
-	// callback error, if any) is returned so the message is requeued.
-	Deliver(data model.SendEmailData) error
+	// On failure, callback.failure (if any) is notified. The outcome is Handled when that
+	// callback accepts the failure; otherwise the source decides what to do (e.g. requeue).
+	Deliver(data model.SendEmailData) Outcome
 }
 
 type service struct {
@@ -36,7 +35,7 @@ func NewService(sender Sender, notifier DeliveryNotifier) Service {
 	return &service{sender: sender, notifier: notifier, now: time.Now}
 }
 
-func (s *service) Deliver(data model.SendEmailData) error {
+func (s *service) Deliver(data model.SendEmailData) Outcome {
 	log.Infof("Processing email id: %q, from: %s, to: %s, subject: %s", data.ID, data.From, data.Receiver, data.Subject)
 
 	if err := s.send(data); err != nil {
@@ -44,8 +43,9 @@ func (s *service) Deliver(data model.SendEmailData) error {
 	}
 
 	log.Infof("Email %q sent successfully from: %s, to: %s", data.ID, data.From, data.Receiver)
-	s.notifySuccess(data)
-	return nil
+	event := s.newEvent(data, model.StatusSent, nil)
+	s.notifySuccess(data, event)
+	return Outcome{Event: event, Handled: true}
 }
 
 func (s *service) send(data model.SendEmailData) error {
@@ -64,29 +64,34 @@ func (s *service) send(data model.SendEmailData) error {
 	return nil
 }
 
-func (s *service) notifySuccess(data model.SendEmailData) {
+func (s *service) notifySuccess(data model.SendEmailData, event model.DeliveryEvent) {
 	target := usableTarget(data.Callback, func(c *model.Callback) *model.CallbackTarget { return c.Success })
 	if target == nil {
 		return
 	}
 
-	if err := s.notifier.Notify(*target, s.newEvent(data, model.StatusSent, nil)); err != nil {
+	if err := s.notifier.Notify(*target, event); err != nil {
 		log.Warnf("Email %q was sent, but the success callback %s failed: %v", data.ID, target.URL, err)
 	}
 }
 
-func (s *service) handleFailure(data model.SendEmailData, cause error) error {
+func (s *service) handleFailure(data model.SendEmailData, cause error) Outcome {
+	outcome := Outcome{Event: s.newEvent(data, model.StatusFailed, cause), Err: cause}
+
 	target := usableTarget(data.Callback, func(c *model.Callback) *model.CallbackTarget { return c.Failure })
 	if target == nil {
-		return cause
+		log.Warnf("Email %q to %s failed: %v", data.ID, data.Receiver, cause)
+		return outcome
 	}
 
-	if err := s.notifier.Notify(*target, s.newEvent(data, model.StatusFailed, cause)); err != nil {
-		return errors.Join(cause, fmt.Errorf("failed to notify failure callback %s: %w", target.URL, err))
+	if err := s.notifier.Notify(*target, outcome.Event); err != nil {
+		outcome.Err = errors.Join(cause, fmt.Errorf("failed to notify failure callback %s: %w", target.URL, err))
+		return outcome
 	}
 
 	log.Warnf("Email %q to %s failed (%v); failure reported to callback %s", data.ID, data.Receiver, cause, target.URL)
-	return nil
+	outcome.Handled = true
+	return outcome
 }
 
 func (s *service) newEvent(data model.SendEmailData, status model.DeliveryStatus, cause error) model.DeliveryEvent {

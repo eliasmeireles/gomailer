@@ -1,8 +1,24 @@
 {{if .Error}}
-  <div class="notice error"><strong>Não publicado:</strong> {{.Error}}</div>
+  <div class="notice error"><strong>Não enviado:</strong> {{.Error}}</div>
+{{else if .Result.Response}}
+  {{with .Result.Response}}
+    {{if eq .Event.Status "sent"}}
+      <div class="notice success"><strong>HTTP {{.StatusCode}} · enviado.</strong> ID <code>{{.Event.ID}}</code></div>
+    {{else}}
+      <div class="notice error"><strong>HTTP {{.StatusCode}}{{if .Event.ErrorCode}} · {{.Event.ErrorCode}}{{end}}</strong>{{if .Event.Cause}}<br>{{.Event.Cause}}{{end}}</div>
+    {{end}}
+  {{end}}
+  <details class="payload" open>
+    <summary>Resposta da API</summary>
+    <pre>{{.Response}}</pre>
+  </details>
+  <details class="payload">
+    <summary>Requisição enviada</summary>
+    <pre>{{.Payload}}</pre>
+  </details>
 {{else}}
   <div class="notice success">
-    <strong>Publicado na fila.</strong> ID <code>{{.Email.ID}}</code>
+    <strong>Publicado na fila ({{.Result.Channel}}).</strong> ID <code>{{.Result.Email.ID}}</code>
   </div>
   <details class="payload">
     <summary>Mensagem publicada</summary>

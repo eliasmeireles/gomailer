@@ -11,8 +11,8 @@ type DeliveryEvent struct {
 	ID         string    `json:"id"`
 	Subject    string    `json:"subject"`
 	Status     string    `json:"status"`
-	ErrorCode  string    `json:"errorCode"`
-	Cause      string    `json:"cause"`
+	ErrorCode  string    `json:"errorCode,omitempty"`
+	Cause      string    `json:"cause,omitempty"`
 	OccurredAt time.Time `json:"occurredAt"`
 }
 
