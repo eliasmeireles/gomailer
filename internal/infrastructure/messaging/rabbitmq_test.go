@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/eliasmeireles/gomailer/internal/core/mailer"
 )
 
 func TestNewRabbitMQConfig(t *testing.T) {
@@ -55,14 +57,14 @@ func TestNewRabbitMQConfig(t *testing.T) {
 
 func TestConsumerReadyInitiallyFalse(t *testing.T) {
 	t.Run("must report not ready before Connect", func(t *testing.T) {
-		c := NewConsumer(RabbitMQConfig{URL: "amqp://invalid", Queue: "q"})
+		c := NewConsumer(RabbitMQConfig{URL: "amqp://invalid", Queue: "q"}, mailer.DefaultRetryPolicy)
 		assert.False(t, c.Ready())
 	})
 }
 
 func TestConsumerConnectRespectsCancelledContext(t *testing.T) {
 	t.Run("when context is cancelled then Connect returns ctx error", func(t *testing.T) {
-		c := NewConsumer(RabbitMQConfig{URL: "amqp://127.0.0.1:1/", Queue: "q"})
+		c := NewConsumer(RabbitMQConfig{URL: "amqp://127.0.0.1:1/", Queue: "q"}, mailer.DefaultRetryPolicy)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 		defer cancel()

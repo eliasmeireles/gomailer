@@ -12,8 +12,14 @@ import (
 	mailerInfra "github.com/eliasmeireles/gomailer/internal/infrastructure/mailer"
 )
 
-// MailerService delivers queued emails and reports failures to the message callback.
-var MailerService mailer.Service
+var (
+	// MailerService delivers email requests and reports outcomes to the message callbacks.
+	MailerService mailer.Service
+
+	// RetryPolicy bounds the attempts of queued requests; queue sources declare their retry
+	// topology from it.
+	RetryPolicy mailer.RetryPolicy
+)
 
 // InitMailer wires the sender selected by MAILER_TRANSPORT / MAILER_API_CLIENT and the callback notifier.
 func InitMailer() {
@@ -33,7 +39,13 @@ func InitMailer() {
 		log.Fatalf("Failed to initialize mailer sender: %v", err)
 	}
 
-	MailerService = mailer.NewService(sender, callback.NewHTTPNotifier(httpClient))
+	retry, err := config.NewRetryConfig()
+	if err != nil {
+		log.Fatalf("Invalid retry settings: %v", err)
+	}
+	RetryPolicy = mailer.RetryPolicy{MaxAttempts: retry.MaxAttempts, BaseDelay: retry.BaseDelay, MaxDelay: retry.MaxDelay}
+
+	MailerService = mailer.NewService(sender, callback.NewHTTPNotifier(httpClient), RetryPolicy)
 	log.Infof("Mailer initialized, transport: %s, api client: %q", settings.Transport, settings.APIClient)
 }
 

@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"github.com/eliasmeireles/gomailer/dev/console/internal/api"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/message"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/monitor"
-	"github.com/eliasmeireles/gomailer/dev/console/internal/queue"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/service"
 )
 
@@ -31,6 +31,10 @@ type fakeConsole struct {
 	inboxCleared  bool
 	eventsCleared bool
 	response      *api.Response
+	letters       []monitor.DeadLetter
+	purged        bool
+	chaos         service.ChaosView
+	chaosReset    bool
 }
 
 func (f *fakeConsole) Send(_ context.Context, form message.Form) (service.SendResult, error) {
@@ -60,6 +64,26 @@ func (f *fakeConsole) Callbacks(context.Context) ([]monitor.CallbackEvent, error
 }
 
 func (f *fakeConsole) ClearCallbacks(context.Context) error { f.eventsCleared = true; return nil }
+
+func (f *fakeConsole) DeadLetters(context.Context) ([]monitor.DeadLetter, error) {
+	return f.letters, f.listErr
+}
+
+func (f *fakeConsole) PurgeDeadLetters(context.Context) error { f.purged = true; return nil }
+
+func (f *fakeConsole) Chaos(context.Context) service.ChaosView { return f.chaos }
+
+func (f *fakeConsole) SetSMTPChaos(_ context.Context, triggers monitor.ChaosTriggers) error {
+	f.chaos.SMTP = triggers
+	return nil
+}
+
+func (f *fakeConsole) ConfigureMockAPI(_ context.Context, behavior monitor.MockBehavior) error {
+	f.chaos.Mock.MockBehavior = behavior
+	return nil
+}
+
+func (f *fakeConsole) ResetChaos(context.Context) error { f.chaosReset = true; return nil }
 
 func newTestServer(t *testing.T, console *fakeConsole, mailerEnv string) http.Handler {
 	t.Helper()
@@ -127,7 +151,7 @@ func TestIndex(t *testing.T) {
 		response := serve(newTestServer(t, &fakeConsole{}, "smtp"), httptest.NewRequest(http.MethodGet, "/static/app.js", nil))
 
 		assert.Equal(t, http.StatusOK, response.Code)
-		assert.Contains(t, response.Body.String(), "refreshPanels")
+		assert.Contains(t, response.Body.String(), "refreshPolledPanels")
 	})
 }
 
@@ -205,13 +229,15 @@ func TestSend(t *testing.T) {
 
 func TestPanels(t *testing.T) {
 	t.Run("given status then render pills", func(t *testing.T) {
-		console := &fakeConsole{status: service.Status{MailerReady: true, Queue: queue.Stats{Messages: 3, Consumers: 1}}}
+		console := &fakeConsole{status: service.Status{MailerReady: true, Queue: monitor.QueueStats{Messages: 3, Consumers: 1, Retrying: 2, DeadLettered: 5}}}
 
 		body := serve(newTestServer(t, console, "resend"), httptest.NewRequest(http.MethodGet, "/partials/status", nil)).Body.String()
 
 		assert.Contains(t, body, "mailer pronto")
 		assert.Contains(t, body, "<strong>3</strong>")
 		assert.Contains(t, body, "<strong>resend</strong>")
+		assert.Contains(t, body, "em retry <strong>2</strong>")
+		assert.Contains(t, body, "DLQ <strong>5</strong>")
 	})
 
 	t.Run("given a queue error then render the unavailable pill", func(t *testing.T) {
@@ -320,5 +346,97 @@ func TestPreviewJSON(t *testing.T) {
 
 		assert.Contains(t, preview, `"body": "curto"`)
 		assert.NotContains(t, preview, "attachments")
+	})
+}
+
+func postForm(handler http.Handler, path string, values url.Values) string {
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(values.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return serve(handler, req).Body.String()
+}
+
+func TestDeadLetterPanel(t *testing.T) {
+	t.Run("given dead letters then render code, attempts and cause", func(t *testing.T) {
+		console := &fakeConsole{letters: []monitor.DeadLetter{{MessageID: "m1", Attempt: 3, ErrorCode: "api_rate_limited", Cause: "too many", FailedAt: time.Now()}}}
+
+		body := serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/dlq", nil)).Body.String()
+
+		assert.Contains(t, body, "api_rate_limited")
+		assert.Contains(t, body, "3 tentativa(s)")
+		assert.Contains(t, body, "too many")
+	})
+
+	t.Run("given no dead letters then render the empty state", func(t *testing.T) {
+		body := serve(newTestServer(t, &fakeConsole{}, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/dlq", nil)).Body.String()
+
+		assert.Contains(t, body, "Nenhuma mensagem na DLQ")
+	})
+
+	t.Run("given purge then empty the queue", func(t *testing.T) {
+		console := &fakeConsole{}
+
+		serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodPost, "/partials/dlq/purge", nil))
+
+		assert.True(t, console.purged)
+	})
+}
+
+func TestChaosPanel(t *testing.T) {
+	t.Run("given the current chaos then render selects and mock counters", func(t *testing.T) {
+		console := &fakeConsole{chaos: service.ChaosView{
+			SMTP: monitor.ChaosTriggers{Recipient: monitor.ChaosTrigger{ErrorCode: 550, Probability: 100}},
+			Mock: monitor.MockState{MockBehavior: monitor.MockBehavior{FailNext: 2, Status: 429}, Accepted: 1, Rejected: 4},
+		}}
+
+		body := serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/chaos", nil)).Body.String()
+
+		assert.Contains(t, body, `<option value="550" selected>550 definitivo</option>`)
+		assert.Contains(t, body, "falhando 2× com 429")
+		assert.Contains(t, body, "aceitos 1 · rejeitados 4")
+	})
+
+	t.Run("given unavailable sides then render their errors", func(t *testing.T) {
+		console := &fakeConsole{chaos: service.ChaosView{SMTPError: "mailpit down", MockError: "mock down"}}
+
+		body := serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/chaos", nil)).Body.String()
+
+		assert.Contains(t, body, "Mailpit indisponível: mailpit down")
+		assert.Contains(t, body, "API mock indisponível: mock down")
+	})
+
+	t.Run("given smtp selections then enable the chosen triggers", func(t *testing.T) {
+		console := &fakeConsole{}
+
+		postForm(newTestServer(t, console, "smtp"), "/partials/chaos/smtp", url.Values{"sender": {"451"}, "recipient": {"0"}, "authentication": {"535"}})
+
+		assert.Equal(t, monitor.ChaosTriggers{
+			Sender:         monitor.ChaosTrigger{ErrorCode: 451, Probability: 100},
+			Recipient:      monitor.ChaosTrigger{ErrorCode: 451, Probability: 0},
+			Authentication: monitor.ChaosTrigger{ErrorCode: 535, Probability: 100},
+		}, console.chaos.SMTP)
+	})
+
+	t.Run("given a mock preset then configure the failure", func(t *testing.T) {
+		console := &fakeConsole{}
+
+		postForm(newTestServer(t, console, "smtp"), "/partials/chaos/api", url.Values{"preset": {"unavailable"}, "failNext": {"3"}})
+
+		assert.Equal(t, 3, console.chaos.Mock.FailNext)
+		assert.Equal(t, 503, console.chaos.Mock.Status)
+		assert.Equal(t, "service_unavailable", console.chaos.Mock.Name)
+	})
+
+	t.Run("given an unknown preset then render an error", func(t *testing.T) {
+		body := postForm(newTestServer(t, &fakeConsole{}, "smtp"), "/partials/chaos/api", url.Values{"preset": {"nope"}, "failNext": {"1"}})
+
+		assert.Contains(t, body, "escolha um cenário")
+	})
+
+	t.Run("given reset then turn everything off", func(t *testing.T) {
+		console := &fakeConsole{}
+
+		serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodPost, "/partials/chaos/reset", nil))
+
+		assert.True(t, console.chaosReset)
 	})
 }

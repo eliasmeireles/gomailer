@@ -8,7 +8,7 @@ import (
 
 func TestLoad(t *testing.T) {
 	t.Run("given no env then use the compose defaults", func(t *testing.T) {
-		for _, key := range []string{"CONSOLE_PORT", "RABBITMQ_URL", "RABBITMQ_QUEUE", "MAILPIT_URL", "MAILPIT_PUBLIC_URL",
+		for _, key := range []string{"CONSOLE_PORT", "RABBITMQ_URL", "RABBITMQ_QUEUE", "RABBITMQ_API_URL", "RABBITMQ_USER", "RABBITMQ_PASS", "MOCK_API_URL", "MAILPIT_URL", "MAILPIT_PUBLIC_URL",
 			"CALLBACK_SERVER_URL", "CALLBACK_SUCCESS_URL", "CALLBACK_FAILURE_URL", "MAILER_HEALTH_URL", "MAILER_API_URL", "MAILER_API_KEY", "MAILER_ENV"} {
 			t.Setenv(key, "")
 		}
@@ -17,6 +17,10 @@ func TestLoad(t *testing.T) {
 			Port:               "8080",
 			RabbitMQURL:        "amqp://guest:guest@rabbitmq:5672/",
 			Queue:              "mailer-service",
+			RabbitMQAPIURL:     "http://rabbitmq:15672",
+			RabbitMQUser:       "guest",
+			RabbitMQPass:       "guest",
+			MockAPIURL:         "http://mockapi:9100",
 			MailpitURL:         "http://mailpit:8025",
 			MailpitPublicURL:   "http://localhost:8025",
 			CallbackServerURL:  "http://callback:9099",

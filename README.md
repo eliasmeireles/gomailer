@@ -8,6 +8,7 @@ A lightweight Go email service that receives requests from RabbitMQ or an HTTP A
 ## Features
 
 - **Multiple sources**: RabbitMQ queue (auto-reconnect with backoff) and a synchronous HTTP API (`POST /v1/emails`), enabled together or alone
+- **Retries and dead-letter queue**: temporary failures are retried with exponential backoff; final unhandled failures go to a DLQ
 - **Pluggable transports**: SMTP (implicit TLS) or HTTP API clients selected by configuration
 - **API clients**: `resend`, `zoho` (Zoho Mail API, OAuth 2.0) and `zeptomail`, with a registry for adding new ones
 - **Delivery callbacks**: optional per-message success and failure callbacks with the email `id`, `subject`, status and cause
@@ -25,15 +26,21 @@ client   ──► POST /v1/emails (HTTP API) ───────────�
                                                                    └── on failure ──► DeliveryNotifier ──► callback.failure.url
 ```
 
-Every source uses the same message contract, callbacks and error codes. RabbitMQ handles outcomes as follows:
+Every source uses the same message contract, callbacks and error codes.
 
-| Outcome | Queue action |
+### Retries and Dead-Letter Queue
+
+Queued requests that fail with a **temporary** error code (`api_connection_failed`, `api_rate_limited`, `api_provider_unavailable`, `smtp_connection_failed`, `smtp_temporary_failure`) are retried up to `MAILER_MAX_ATTEMPTS` times, waiting `MAILER_RETRY_BASE_DELAY` doubled per attempt (default 30s, 1m, 2m, 4m). Callbacks are only called with the final outcome.
+
+| Outcome | RabbitMQ action |
 |---|---|
-| Email sent | ack (`callback.success` notified; if it fails, only logged — never resent) |
-| Send failed, `callback.failure` answered 2xx | ack (failure handed to the callback) |
-| Send failed, no `callback.failure` | nack + requeue |
-| Send failed, `callback.failure` failed (non-2xx / unreachable) | nack + requeue |
-| Invalid JSON message | nack + requeue |
+| Email sent | ack; `callback.success` notified (a failing success callback is only logged, never resent) |
+| Temporary failure with attempts left | republished to `<queue>.retry.<delay>`, then ack |
+| Final failure, `callback.failure` answered 2xx | ack (failure handed to the callback) |
+| Final failure, no `callback.failure` or it failed | republished to `<queue>.dlq` with `x-error-code`, `x-error-cause`, `x-attempt`, `x-failed-at` headers, then ack |
+| Invalid JSON message | `<queue>.dlq` (`message_invalid_json`) |
+
+The retry queues need no plugin: each one has a message TTL equal to its delay and dead-letters expired messages back to the main queue; the delay is part of the name (`mailer-service.retry.30s`), so changing the policy creates new queues instead of conflicting with existing ones. Retries and dead letters are republished with publisher confirms; if the broker does not confirm, the original message is requeued. The HTTP API never retries: it answers the first attempt.
 
 ## Queue Message
 
@@ -98,22 +105,24 @@ Failure events carry a stable `errorCode` for programmatic handling; `cause` kee
 
 | Code | When |
 |---|---|
+| `message_invalid_json` | Queued message is not valid JSON (dead-lettered) |
 | `message_invalid_body` | `body` is not valid base64 |
 | `message_missing_sender` / `message_missing_receiver` / `message_missing_subject` / `message_missing_body` | Required field empty |
-| `smtp_connection_failed` | TCP/TLS connection to the SMTP server failed |
+| `smtp_connection_failed` | TCP/TLS connection to the SMTP server failed — retried |
 | `smtp_authorization_denied` | SMTP credentials rejected |
 | `smtp_sender_rejected` | `MAIL FROM` rejected (sender not allowed) |
 | `smtp_receiver_rejected` | `RCPT TO` rejected for a receiver/cc/bcc address |
 | `smtp_message_rejected` | Server rejected the message content |
-| `api_connection_failed` | Provider API unreachable (DNS, network, timeout) |
+| `smtp_temporary_failure` | Any 4xx SMTP reply (e.g. 421, 450, 451) — retried |
+| `api_connection_failed` | Provider API unreachable (DNS, network, timeout) — retried |
 | `api_authorization_denied` | Invalid/revoked API key or OAuth credentials |
 | `api_sender_not_allowed` | Sender domain not verified or `from` not allowed |
 | `api_invalid_receiver` | Invalid `to`/`cc`/`bcc` address |
 | `api_invalid_attachment` | Attachment rejected by the provider |
 | `api_invalid_request` | Other request validation errors |
 | `api_quota_exceeded` | Daily/monthly quota or credits exhausted |
-| `api_rate_limited` | Too many requests |
-| `api_provider_unavailable` | Provider 5xx |
+| `api_rate_limited` | Too many requests — retried |
+| `api_provider_unavailable` | Provider 5xx — retried |
 | `api_unexpected_response` | Any other provider response |
 | `unknown_error` | Unclassified failure |
 
@@ -157,6 +166,14 @@ Requests without `id` get a generated UUID, returned in the response. Callbacks 
 | `HTTP_API_PORT` | `8081` | HTTP source port |
 | `HTTP_API_KEYS` | — | Required for `http`: comma-separated accepted Bearer tokens |
 | `HTTP_API_MAX_BODY_BYTES` | `26214400` | Max request body (25 MiB) |
+
+### Retries
+
+| Variable | Default | Description |
+|---|---|---|
+| `MAILER_MAX_ATTEMPTS` | `5` | Attempts per queued request (`1` disables retries) |
+| `MAILER_RETRY_BASE_DELAY` | `30s` | Wait after the first failed attempt, doubled per attempt |
+| `MAILER_RETRY_MAX_DELAY` | `10m` | Upper bound of the wait |
 
 ### Transport
 

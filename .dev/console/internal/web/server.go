@@ -28,6 +28,12 @@ type ConsoleService interface {
 	ClearInbox(ctx context.Context) error
 	Callbacks(ctx context.Context) ([]monitor.CallbackEvent, error)
 	ClearCallbacks(ctx context.Context) error
+	DeadLetters(ctx context.Context) ([]monitor.DeadLetter, error)
+	PurgeDeadLetters(ctx context.Context) error
+	Chaos(ctx context.Context) service.ChaosView
+	SetSMTPChaos(ctx context.Context, triggers monitor.ChaosTriggers) error
+	ConfigureMockAPI(ctx context.Context, behavior monitor.MockBehavior) error
+	ResetChaos(ctx context.Context) error
 }
 
 // Settings are the static values shown on the page and used as form defaults.
@@ -73,6 +79,12 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /partials/inbox/clear", s.clearInbox)
 	mux.HandleFunc("GET /partials/callbacks", s.callbacks)
 	mux.HandleFunc("POST /partials/callbacks/clear", s.clearCallbacks)
+	mux.HandleFunc("GET /partials/dlq", s.deadLetters)
+	mux.HandleFunc("POST /partials/dlq/purge", s.purgeDeadLetters)
+	mux.HandleFunc("GET /partials/chaos", s.chaos)
+	mux.HandleFunc("POST /partials/chaos/smtp", s.setSMTPChaos)
+	mux.HandleFunc("POST /partials/chaos/api", s.configureMockAPI)
+	mux.HandleFunc("POST /partials/chaos/reset", s.resetChaos)
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
 	return mux
 }
@@ -90,6 +102,15 @@ func (s *Server) render(w http.ResponseWriter, name string, data any, status int
 
 var templateFuncs = template.FuncMap{
 	"clock": func(t time.Time) string { return t.Local().Format("15:04:05") },
+	"join":  func(values []string) string { return strings.Join(values, ", ") },
+	"dict": func(pairs ...any) map[string]any {
+		values := make(map[string]any, len(pairs)/2)
+		for i := 0; i+1 < len(pairs); i += 2 {
+			key, _ := pairs[i].(string)
+			values[key] = pairs[i+1]
+		}
+		return values
+	},
 	"addresses": func(list []monitor.Address) string {
 		values := make([]string, 0, len(list))
 		for _, address := range list {

@@ -14,12 +14,6 @@ import (
 
 const dialTimeout = 5 * time.Second
 
-// Stats is a snapshot of the queue.
-type Stats struct {
-	Messages  int
-	Consumers int
-}
-
 // Publisher opens a short-lived connection per call, which is enough for a dev tool and
 // survives broker restarts without reconnect logic.
 type Publisher struct {
@@ -51,20 +45,6 @@ func (p *Publisher) Publish(ctx context.Context, email message.Email) error {
 			Body:         body,
 		})
 	})
-}
-
-// Stats returns the number of ready messages and consumers of the queue.
-func (p *Publisher) Stats(_ context.Context) (Stats, error) {
-	var stats Stats
-	err := p.withChannel(func(ch *amqp.Channel) error {
-		q, err := ch.QueueDeclarePassive(p.queue, true, false, false, false, nil)
-		if err != nil {
-			return fmt.Errorf("inspect queue %s: %w", p.queue, err)
-		}
-		stats = Stats{Messages: q.Messages, Consumers: q.Consumers}
-		return nil
-	})
-	return stats, err
 }
 
 // declare mirrors the mailer declaration (durable, non-exclusive) so both sides agree.

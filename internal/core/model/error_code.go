@@ -6,6 +6,7 @@ type ErrorCode string
 
 // Message validation, before any transport is called.
 const (
+	CodeMessageInvalidJSON     ErrorCode = "message_invalid_json"
 	CodeMessageInvalidBody     ErrorCode = "message_invalid_body"
 	CodeMessageMissingSender   ErrorCode = "message_missing_sender"
 	CodeMessageMissingReceiver ErrorCode = "message_missing_receiver"
@@ -20,6 +21,8 @@ const (
 	CodeSMTPSenderRejected      ErrorCode = "smtp_sender_rejected"
 	CodeSMTPReceiverRejected    ErrorCode = "smtp_receiver_rejected"
 	CodeSMTPMessageRejected     ErrorCode = "smtp_message_rejected"
+	// CodeSMTPTemporaryFailure is any 4xx SMTP reply (e.g. 421, 450, 451): try again later.
+	CodeSMTPTemporaryFailure ErrorCode = "smtp_temporary_failure"
 )
 
 // Provider HTTP APIs (resend, zoho, zeptomail), normalized across providers.
@@ -38,3 +41,14 @@ const (
 
 // CodeUnknown is used when a failure carries no classification.
 const CodeUnknown ErrorCode = "unknown_error"
+
+// Retryable reports whether the failure is temporary, so the same request may succeed later.
+func (c ErrorCode) Retryable() bool {
+	switch c {
+	case CodeAPIConnectionFailed, CodeAPIRateLimited, CodeAPIProviderUnavailable,
+		CodeSMTPConnectionFailed, CodeSMTPTemporaryFailure:
+		return true
+	default:
+		return false
+	}
+}

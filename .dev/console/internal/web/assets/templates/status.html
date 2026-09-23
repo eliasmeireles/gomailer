@@ -10,5 +10,7 @@
   {{else}}
     <span class="pill">na fila <strong>{{.Queue.Messages}}</strong></span>
     <span class="pill {{if eq .Queue.Consumers 0}}bad{{else}}ok{{end}}">consumidores <strong>{{.Queue.Consumers}}</strong></span>
+    <span class="pill {{if .Queue.Retrying}}warn{{end}}">em retry <strong>{{.Queue.Retrying}}</strong></span>
+    <span class="pill {{if .Queue.DeadLettered}}bad{{end}}">DLQ <strong>{{.Queue.DeadLettered}}</strong></span>
   {{end}}
 </div>

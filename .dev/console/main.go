@@ -19,14 +19,18 @@ import (
 func main() {
 	cfg := config.Load()
 
-	console := service.NewConsole(
-		queue.NewPublisher(cfg.RabbitMQURL, cfg.Queue),
-		api.NewClient(cfg.MailerAPIURL, cfg.MailerAPIKey),
-		monitor.NewMailpit(cfg.MailpitURL),
-		monitor.NewCallbacks(cfg.CallbackServerURL),
-		monitor.NewHealth(cfg.MailerHealthURL),
-		message.NewID,
-	)
+	mailpit := monitor.NewMailpit(cfg.MailpitURL)
+	console := service.NewConsole(service.Dependencies{
+		Publisher: queue.NewPublisher(cfg.RabbitMQURL, cfg.Queue),
+		API:       api.NewClient(cfg.MailerAPIURL, cfg.MailerAPIKey),
+		Queues:    monitor.NewRabbitMQ(cfg.RabbitMQAPIURL, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.Queue),
+		Inbox:     mailpit,
+		SMTPChaos: mailpit,
+		MockAPI:   monitor.NewMockAPI(cfg.MockAPIURL),
+		Callbacks: monitor.NewCallbacks(cfg.CallbackServerURL),
+		Health:    monitor.NewHealth(cfg.MailerHealthURL),
+		NewID:     message.NewID,
+	})
 
 	server, err := web.NewServer(console, web.Settings{
 		MailerEnv:          cfg.MailerEnv,

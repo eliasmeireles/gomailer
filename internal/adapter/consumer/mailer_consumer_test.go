@@ -1,8 +1,6 @@
 package consumer
 
 import (
-	"encoding/json"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,59 +12,46 @@ import (
 
 type mockService struct {
 	delivered model.SendEmailData
+	attempt   int
 	calls     int
 	outcome   mailer.Outcome
 }
 
-func (m *mockService) Deliver(data model.SendEmailData) mailer.Outcome {
+func (m *mockService) Deliver(data model.SendEmailData, attempt int) mailer.Outcome {
 	m.delivered = data
+	m.attempt = attempt
 	m.calls++
 	return m.outcome
 }
 
+func (m *mockService) DeliverOnce(data model.SendEmailData) mailer.Outcome {
+	return m.Deliver(data, 1)
+}
+
 func TestMailerConsumerHandle(t *testing.T) {
-	t.Run("given a valid message then deliver it with the callback", func(t *testing.T) {
-		service := &mockService{outcome: mailer.Outcome{Handled: true}}
+	t.Run("given a valid message then deliver it on the given attempt with the callback", func(t *testing.T) {
+		service := &mockService{outcome: mailer.Outcome{Action: mailer.ActionRetry}}
 		body := []byte(`{"from":"sender@exemplo.com.br","receiver":"maria@exemplo.com.br","subject":"Assunto","body":"PGgxPk9pPC9oMT4=","callback":{"success":{"url":"https://exemplo.com.br/sent"},"failure":{"url":"https://exemplo.com.br/cb"}}}`)
 
-		err := NewMailerConsumer(service).Handle(body)
+		outcome := NewMailerConsumer(service).Handle(body, 3)
 
-		require.NoError(t, err)
-		assert.Equal(t, 1, service.calls)
+		assert.Equal(t, mailer.ActionRetry, outcome.Action)
+		assert.Equal(t, 3, service.attempt)
 		assert.Equal(t, model.Recipients{"maria@exemplo.com.br"}, service.delivered.Receiver)
-		assert.Equal(t, "PGgxPk9pPC9oMT4=", service.delivered.Body)
 		require.NotNil(t, service.delivered.Callback)
-		require.NotNil(t, service.delivered.Callback.Success)
 		require.NotNil(t, service.delivered.Callback.Failure)
-		assert.Equal(t, "https://exemplo.com.br/sent", service.delivered.Callback.Success.URL)
 		assert.Equal(t, "https://exemplo.com.br/cb", service.delivered.Callback.Failure.URL)
 	})
 
-	t.Run("given invalid json then return error without delivering", func(t *testing.T) {
+	t.Run("given invalid json then dead-letter it without delivering", func(t *testing.T) {
 		service := &mockService{}
 
-		err := NewMailerConsumer(service).Handle([]byte("invalid json"))
+		outcome := NewMailerConsumer(service).Handle([]byte("invalid json"), 1)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to unmarshal")
+		assert.Equal(t, mailer.ActionDeadLetter, outcome.Action)
+		assert.Equal(t, model.CodeMessageInvalidJSON, outcome.Event.ErrorCode)
+		assert.Contains(t, outcome.Event.Cause, "failed to unmarshal")
+		require.Error(t, outcome.Err)
 		assert.Zero(t, service.calls)
-	})
-
-	t.Run("given a failure handled by the callback then return nil", func(t *testing.T) {
-		service := &mockService{outcome: mailer.Outcome{Err: errors.New("delivery failed"), Handled: true}}
-		body, err := json.Marshal(model.SendEmailData{From: "sender@exemplo.com.br", Receiver: model.Recipients{"maria@exemplo.com.br"}})
-		require.NoError(t, err)
-
-		require.NoError(t, NewMailerConsumer(service).Handle(body))
-	})
-
-	t.Run("given an unhandled failure then return the error", func(t *testing.T) {
-		service := &mockService{outcome: mailer.Outcome{Err: errors.New("delivery failed")}}
-		body, err := json.Marshal(model.SendEmailData{From: "sender@exemplo.com.br", Receiver: model.Recipients{"maria@exemplo.com.br"}})
-		require.NoError(t, err)
-
-		err = NewMailerConsumer(service).Handle(body)
-
-		require.EqualError(t, err, "delivery failed")
 	})
 }
