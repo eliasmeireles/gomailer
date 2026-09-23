@@ -9,7 +9,7 @@ import (
 func TestLoad(t *testing.T) {
 	t.Run("given no env then use the compose defaults", func(t *testing.T) {
 		for _, key := range []string{"CONSOLE_PORT", "RABBITMQ_URL", "RABBITMQ_QUEUE", "MAILPIT_URL", "MAILPIT_PUBLIC_URL",
-			"CALLBACK_SERVER_URL", "CALLBACK_SUCCESS_URL", "CALLBACK_FAILURE_URL", "MAILER_HEALTH_URL", "MAILER_ENV"} {
+			"CALLBACK_SERVER_URL", "CALLBACK_SUCCESS_URL", "CALLBACK_FAILURE_URL", "MAILER_HEALTH_URL", "MAILER_API_URL", "MAILER_API_KEY", "MAILER_ENV"} {
 			t.Setenv(key, "")
 		}
 
@@ -23,6 +23,8 @@ func TestLoad(t *testing.T) {
 			CallbackSuccessURL: "http://callback:9099/success",
 			CallbackFailureURL: "http://callback:9099/failures",
 			MailerHealthURL:    "http://mailer:8080/readyz",
+			MailerAPIURL:       "http://mailer:8081",
+			MailerAPIKey:       "dev-token",
 			MailerEnv:          "smtp",
 		}, Load())
 	})

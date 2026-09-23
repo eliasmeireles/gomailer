@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eliasmeireles/gomailer/dev/console/internal/api"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/message"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/monitor"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/queue"
@@ -43,6 +44,17 @@ type fakeCallbacks struct {
 func (f *fakeCallbacks) List(context.Context) ([]monitor.CallbackEvent, error) { return f.events, nil }
 func (f *fakeCallbacks) Clear(context.Context) error                           { f.cleared = true; return nil }
 
+type fakeAPI struct {
+	sent     []message.Email
+	response api.Response
+	err      error
+}
+
+func (f *fakeAPI) Send(_ context.Context, email message.Email) (api.Response, error) {
+	f.sent = append(f.sent, email)
+	return f.response, f.err
+}
+
 type fakeHealth struct{ ready bool }
 
 func (f fakeHealth) Ready(context.Context) bool { return f.ready }
@@ -52,18 +64,45 @@ func validForm() message.Form {
 }
 
 func newTestConsole(publisher *fakePublisher, inbox *fakeInbox, callbacks *fakeCallbacks, ready bool) *Console {
-	return NewConsole(publisher, inbox, callbacks, fakeHealth{ready: ready}, func() string { return "id-1" })
+	return NewConsole(publisher, &fakeAPI{}, inbox, callbacks, fakeHealth{ready: ready}, func() string { return "id-1" })
 }
 
 func TestConsoleSend(t *testing.T) {
-	t.Run("given a valid form then publish and return the email", func(t *testing.T) {
+	t.Run("given a valid form without channel then publish to rabbitmq", func(t *testing.T) {
 		publisher := &fakePublisher{}
 
-		email, err := newTestConsole(publisher, &fakeInbox{}, &fakeCallbacks{}, true).Send(context.Background(), validForm())
+		result, err := newTestConsole(publisher, &fakeInbox{}, &fakeCallbacks{}, true).Send(context.Background(), validForm())
 
 		require.NoError(t, err)
-		assert.Equal(t, "id-1", email.ID)
-		assert.Equal(t, []message.Email{email}, publisher.published)
+		assert.Equal(t, "id-1", result.Email.ID)
+		assert.Equal(t, message.ChannelRabbitMQ, result.Channel)
+		assert.Nil(t, result.Response)
+		assert.Equal(t, []message.Email{result.Email}, publisher.published)
+	})
+
+	t.Run("given the http channel then call the api and return its response", func(t *testing.T) {
+		publisher := &fakePublisher{}
+		client := &fakeAPI{response: api.Response{StatusCode: 200}}
+		console := NewConsole(publisher, client, &fakeInbox{}, &fakeCallbacks{}, fakeHealth{}, func() string { return "id-1" })
+		form := validForm()
+		form.Channel = message.ChannelHTTP
+
+		result, err := console.Send(context.Background(), form)
+
+		require.NoError(t, err)
+		assert.Equal(t, &api.Response{StatusCode: 200}, result.Response)
+		assert.Len(t, client.sent, 1)
+		assert.Empty(t, publisher.published)
+	})
+
+	t.Run("given an api error then return it", func(t *testing.T) {
+		console := NewConsole(&fakePublisher{}, &fakeAPI{err: errors.New("mailer down")}, &fakeInbox{}, &fakeCallbacks{}, fakeHealth{}, func() string { return "id-1" })
+		form := validForm()
+		form.Channel = message.ChannelHTTP
+
+		_, err := console.Send(context.Background(), form)
+
+		require.EqualError(t, err, "mailer down")
 	})
 
 	t.Run("given an invalid form then return error without publishing", func(t *testing.T) {

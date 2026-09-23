@@ -5,7 +5,7 @@ Runs the whole flow in Docker, using the same image that is deployed (built from
 | Service | Purpose | URL |
 |---|---|---|
 | `rabbitmq` | Queue `mailer-service` | UI http://localhost:15672 (`guest` / `guest`) |
-| `mailer` | The app, configured by `env/<MAILER_ENV>.env` | Health http://localhost:8089/readyz |
+| `mailer` | The app, configured by `env/<MAILER_ENV>.env`, with the `rabbitmq` and `http` sources | Health http://localhost:8089/readyz · API http://localhost:8090/v1/emails (token `dev-token`) |
 | `mailpit` | Fake SMTP server with implicit TLS, catches every email | UI http://localhost:8025 |
 | `console` | Web console: publishes emails and follows status, callbacks and inbox | http://localhost:3000 |
 | `callback` | Receives success/failure callbacks (`/success`, `/failures`), prints and lists them (`GET /events`) | http://localhost:9099 |
@@ -27,11 +27,23 @@ make dev-down               # stop everything and drop volumes
 
 A Go web app (`console/`) that acts as an external producer: it builds messages in the mailer contract and publishes them straight to the queue over AMQP.
 
+- **Enviar via**: RabbitMQ (publishes to the queue) or HTTP (calls `POST /v1/emails` and shows the synchronous response: status, `errorCode`, `cause`).
 - Form with `id`, `from`, `to`/`cc`/`bcc` (sent as array or comma-separated string), subject, HTML body with live preview, attachments, success/failure callbacks and a "simulate failure" switch (non-base64 body).
 - Header pills with the selected `MAILER_ENV`, mailer readiness, queue size and consumers.
 - Panels for the received callbacks (sent/failed with cause) and the Mailpit inbox (to/cc/bcc, attachments), refreshed every 3s.
 
 Its defaults follow `MAILER_ENV` (e.g. `from` is `onboarding@resend.dev` for Resend). Run its tests with `cd .dev/console && go test ./...`.
+
+## HTTP API
+
+The mailer runs with `MAILER_SOURCES=rabbitmq,http`. Call the API directly:
+
+```bash
+curl -X POST http://localhost:8090/v1/emails -H "Authorization: Bearer dev-token" -H "Content-Type: application/json" \
+  -d '{"from":"no-reply@exemplo.com.br","receiver":"maria@exemplo.com.br","subject":"Oi","body":"PGgxPk9pPC9oMT4="}'
+```
+
+Override the sources or the token with `MAILER_SOURCES=http make dev-up` and `HTTP_API_KEY=<token>`.
 
 ## Environments
 
@@ -89,4 +101,4 @@ make dev-publish MESSAGE=invalid-body   # callback answers 500 -> message goes b
 
 ## Useful Overrides
 
-Host ports can be changed with `RABBITMQ_PORT`, `RABBITMQ_UI_PORT`, `MAILPIT_UI_PORT`, `CALLBACK_PORT` and `MAILER_HEALTH_PORT`.
+Host ports can be changed with `RABBITMQ_PORT`, `RABBITMQ_UI_PORT`, `MAILPIT_UI_PORT`, `CALLBACK_PORT`, `MAILER_HEALTH_PORT`, `MAILER_API_PORT` and `CONSOLE_PORT`.

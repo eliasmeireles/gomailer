@@ -10,6 +10,16 @@ const (
 	FormatString RecipientsFormat = "string"
 )
 
+// Channel is how the console hands the email to the mailer.
+type Channel string
+
+const (
+	// ChannelRabbitMQ publishes to the mailer queue (asynchronous).
+	ChannelRabbitMQ Channel = "rabbitmq"
+	// ChannelHTTP calls POST /v1/emails and waits for the delivery result.
+	ChannelHTTP Channel = "http"
+)
+
 // File is an uploaded attachment with its raw content.
 type File struct {
 	Name    string
@@ -19,6 +29,7 @@ type File struct {
 
 // Form is the console input used to build an Email.
 type Form struct {
+	Channel     Channel
 	ID          string
 	From        string
 	To          string

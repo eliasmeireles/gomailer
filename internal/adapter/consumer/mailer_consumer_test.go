@@ -8,24 +8,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eliasmeireles/gomailer/internal/core/mailer"
 	"github.com/eliasmeireles/gomailer/internal/core/model"
 )
 
 type mockService struct {
 	delivered model.SendEmailData
 	calls     int
-	err       error
+	outcome   mailer.Outcome
 }
 
-func (m *mockService) Deliver(data model.SendEmailData) error {
+func (m *mockService) Deliver(data model.SendEmailData) mailer.Outcome {
 	m.delivered = data
 	m.calls++
-	return m.err
+	return m.outcome
 }
 
 func TestMailerConsumerHandle(t *testing.T) {
 	t.Run("given a valid message then deliver it with the callback", func(t *testing.T) {
-		service := &mockService{}
+		service := &mockService{outcome: mailer.Outcome{Handled: true}}
 		body := []byte(`{"from":"sender@exemplo.com.br","receiver":"maria@exemplo.com.br","subject":"Assunto","body":"PGgxPk9pPC9oMT4=","callback":{"success":{"url":"https://exemplo.com.br/sent"},"failure":{"url":"https://exemplo.com.br/cb"}}}`)
 
 		err := NewMailerConsumer(service).Handle(body)
@@ -51,8 +52,16 @@ func TestMailerConsumerHandle(t *testing.T) {
 		assert.Zero(t, service.calls)
 	})
 
-	t.Run("given a service error then return it", func(t *testing.T) {
-		service := &mockService{err: errors.New("delivery failed")}
+	t.Run("given a failure handled by the callback then return nil", func(t *testing.T) {
+		service := &mockService{outcome: mailer.Outcome{Err: errors.New("delivery failed"), Handled: true}}
+		body, err := json.Marshal(model.SendEmailData{From: "sender@exemplo.com.br", Receiver: model.Recipients{"maria@exemplo.com.br"}})
+		require.NoError(t, err)
+
+		require.NoError(t, NewMailerConsumer(service).Handle(body))
+	})
+
+	t.Run("given an unhandled failure then return the error", func(t *testing.T) {
+		service := &mockService{outcome: mailer.Outcome{Err: errors.New("delivery failed")}}
 		body, err := json.Marshal(model.SendEmailData{From: "sender@exemplo.com.br", Receiver: model.Recipients{"maria@exemplo.com.br"}})
 		require.NoError(t, err)
 

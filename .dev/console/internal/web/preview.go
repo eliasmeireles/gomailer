@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/eliasmeireles/gomailer/dev/console/internal/api"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/message"
 )
 
@@ -23,6 +24,18 @@ func previewJSON(email message.Email) string {
 	}
 
 	raw, _ := json.MarshalIndent(preview, "", "  ")
+	return string(raw)
+}
+
+// responseJSON renders the HTTP source answer (event, or raw body for non-event errors).
+func responseJSON(response *api.Response) string {
+	if response == nil {
+		return ""
+	}
+	if response.Raw != "" {
+		return response.Raw
+	}
+	raw, _ := json.MarshalIndent(response.Event, "", "  ")
 	return string(raw)
 }
 
