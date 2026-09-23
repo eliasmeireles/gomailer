@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Vet and test service
+        run: |
+          go vet ./...
+          go test -race ./...
+
+      - name: Vet and test dev console
+        working-directory: .dev/console
+        run: |
+          go vet ./...
+          go test -race ./...
+
+      - name: Build image
+        run: docker build -t gomailer:ci .

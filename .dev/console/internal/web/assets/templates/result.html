@@ -1,0 +1,11 @@
+{{if .Error}}
+  <div class="notice error"><strong>Não publicado:</strong> {{.Error}}</div>
+{{else}}
+  <div class="notice success">
+    <strong>Publicado na fila.</strong> ID <code>{{.Email.ID}}</code>
+  </div>
+  <details class="payload">
+    <summary>Mensagem publicada</summary>
+    <pre>{{.Payload}}</pre>
+  </details>
+{{end}}

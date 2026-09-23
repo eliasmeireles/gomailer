@@ -1,0 +1,20 @@
+# Local environment and credentials
+.env
+.dev/env/*.env
+!.dev/env/smtp.env
+
+# Build output
+/bin/
+/dist/
+*.out
+*.test
+
+# Editors and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Tooling
+.playwright-mcp/
+*.log

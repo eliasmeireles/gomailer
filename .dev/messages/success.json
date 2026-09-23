@@ -1,0 +1,31 @@
+{
+  "id": "$MAIL_ID",
+  "from": "$MAIL_FROM",
+  "receiver": "$MAIL_TO",
+  "cc": "$MAIL_CC",
+  "bcc": "$MAIL_BCC",
+  "subject": "Mailer App - teste de envio",
+  "body": "PCFET0NUWVBFIGh0bWw+PGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLHNhbnMtc2VyaWYiPgo8aDE+TWFpbGVyIEFwcDwvaDE+CjxwPk1lbnNhZ2VtIGRlIHRlc3RlIGVudmlhZGEgcGVsYSBzdGFjayBsb2NhbCAoPGNvZGU+LmRldi88L2NvZGU+KS48L3A+CjxwPlNlIHZvY8OqIHJlY2ViZXUgZXN0ZSBlbWFpbCwgbyB0cmFuc3BvcnRlIGNvbmZpZ3VyYWRvIGVzdMOhIGZ1bmNpb25hbmRvLiDinIU8L3A+CjwvYm9keT48L2h0bWw+",
+  "attachments": [
+    {
+      "name": "teste.txt",
+      "type": "text/plain",
+      "data": "QW5leG8gZGUgdGVzdGUgZG8gbWFpbGVyLWFwcC4=",
+      "decoder": "base64"
+    }
+  ],
+  "callback": {
+    "success": {
+      "url": "$CALLBACK_SUCCESS_URL",
+      "headers": {
+        "Authorization": "Bearer token-de-teste"
+      }
+    },
+    "failure": {
+      "url": "$CALLBACK_FAILURE_URL",
+      "headers": {
+        "Authorization": "Bearer token-de-teste"
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{{if .Error}}<div class="notice error">{{.Error}}</div>{{end}}
+{{if not .Events}}
+  <p class="empty">Nenhum callback recebido.</p>
+{{else}}
+  <ul class="list">
+    {{range .Events}}
+      <li>
+        <div class="row">
+          <span><span class="badge {{.Body.Status}}">{{if eq .Body.Status "sent"}}enviado{{else}}falhou{{end}}</span> <strong>{{.Body.Subject}}</strong></span>
+          <span class="time">{{clock .ReceivedAt}}</span>
+        </div>
+        <div class="meta">id <code>{{.Body.ID}}</code> · {{.Path}} · resposta {{.Status}}</div>
+        {{if .Body.ErrorCode}}<div class="meta">errorCode <code class="error-code">{{.Body.ErrorCode}}</code></div>{{end}}
+        {{if .Body.Cause}}<div class="cause">{{.Body.Cause}}</div>{{end}}
+      </li>
+    {{end}}
+  </ul>
+{{end}}

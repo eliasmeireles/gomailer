@@ -1,0 +1,117 @@
+# Local test stack for gomailer.
+#
+#   MAILER_ENV=smtp docker compose -f .dev/docker-compose.yaml up -d --build
+#
+# MAILER_ENV selects .dev/env/<MAILER_ENV>.env (default: smtp -> local Mailpit, no credentials needed).
+# See .dev/README.md for the available environments and how to publish test messages.
+name: gomailer-dev
+
+services:
+  rabbitmq:
+    image: rabbitmq:4.3-management
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_UI_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+
+  certs:
+    image: alpine:3.24
+    command: ["/bin/sh", "/scripts/generate.sh"]
+    volumes:
+      - ./certs/generate.sh:/scripts/generate.sh:ro
+      - certs:/certs
+
+  mailpit:
+    image: axllent/mailpit:v1.31
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+    environment:
+      MP_SMTP_TLS_CERT: /certs/server/mailpit.pem
+      MP_SMTP_TLS_KEY: /certs/server/mailpit-key.pem
+      MP_SMTP_REQUIRE_TLS: "true"
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    volumes:
+      - certs:/certs:ro
+
+  callback:
+    image: python:3.14-alpine3.24
+    command: ["python", "-u", "/app/server.py"]
+    environment:
+      CALLBACK_STATUS: ${CALLBACK_STATUS:-204}
+    ports:
+      - "${CALLBACK_PORT:-9099}:9099"
+    volumes:
+      - ./callback/server.py:/app/server.py:ro
+
+  mailer:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: gomailer:dev
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+      callback:
+        condition: service_started
+    env_file:
+      - env/${MAILER_ENV:-smtp}.env
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+      RABBITMQ_QUEUE: mailer-service
+      # System CAs plus the local test CA that signs Mailpit's certificate.
+      SSL_CERT_DIR: /etc/ssl/certs:/dev-certs/ca
+    ports:
+      - "${MAILER_HEALTH_PORT:-8089}:8080"
+    volumes:
+      - certs:/dev-certs:ro
+
+  console:
+    build:
+      context: console
+    image: gomailer-console:dev
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mailer:
+        condition: service_started
+    environment:
+      MAILER_ENV: ${MAILER_ENV:-smtp}
+      MAILPIT_PUBLIC_URL: http://localhost:${MAILPIT_UI_PORT:-8025}
+    ports:
+      - "${CONSOLE_PORT:-3000}:8080"
+
+  publisher:
+    image: python:3.14-alpine3.24
+    profiles: ["tools"]
+    entrypoint: ["python", "-u", "/app/publish.py"]
+    command: ["success"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      # Sender/recipient of the test message, like a real producer would put in the message body.
+      MAIL_FROM: ${MAIL_FROM:-no-reply@exemplo.com.br}
+      MAIL_TO: ${MAIL_TO:-maria@exemplo.com.br}
+      MAIL_CC: ${MAIL_CC:-}
+      MAIL_BCC: ${MAIL_BCC:-}
+      RABBITMQ_API_URL: http://rabbitmq:15672
+      RABBITMQ_QUEUE: mailer-service
+      CALLBACK_SUCCESS_URL: ${CALLBACK_SUCCESS_URL:-http://callback:9099/success}
+      CALLBACK_FAILURE_URL: ${CALLBACK_FAILURE_URL:-http://callback:9099/failures}
+    volumes:
+      - ./publisher/publish.py:/app/publish.py:ro
+      - ./messages:/messages:ro
+
+volumes:
+  certs:

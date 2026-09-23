@@ -1,0 +1,19 @@
+{{if .Error}}<div class="notice error">{{.Error}}</div>{{end}}
+{{if not .Messages}}
+  <p class="empty">Nenhum email na caixa.</p>
+{{else}}
+  <ul class="list">
+    {{range .Messages}}
+      <li>
+        <div class="row">
+          <a href="{{$.MailpitPublicURL}}/view/{{.ID}}" target="_blank" rel="noopener"><strong>{{.Subject}}</strong></a>
+          <span class="time">{{clock .Created}}</span>
+        </div>
+        <div class="meta">de {{.From.Address}} · para {{addresses .To}}</div>
+        {{if .Cc}}<div class="meta">cc {{addresses .Cc}}</div>{{end}}
+        {{if .Bcc}}<div class="meta">bcc {{addresses .Bcc}}</div>{{end}}
+        {{if .Attachments}}<div class="meta">📎 {{.Attachments}} anexo(s)</div>{{end}}
+      </li>
+    {{end}}
+  </ul>
+{{end}}

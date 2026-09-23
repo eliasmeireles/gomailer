@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mailer Dev Console</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9C%89%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">✉</span>
+    <div>
+      <h1>Mailer Dev Console</h1>
+      <p>Publica na fila <code>{{.Queue}}</code> e acompanha o mailer local</p>
+    </div>
+  </div>
+  <div id="status" data-src="/partials/status" data-poll></div>
+</header>
+
+<main class="layout">
+  <section class="card compose">
+    <h2>Novo email</h2>
+    <form id="send-form" enctype="multipart/form-data">
+      <div class="grid two">
+        <label>ID <span class="hint">vazio = UUID automático</span>
+          <input name="id" placeholder="pedido-123-confirmacao">
+        </label>
+        <label>From
+          <input name="from" value="{{.DefaultFrom}}" required>
+        </label>
+      </div>
+
+      <label>To <span class="hint">separe por vírgula, ponto e vírgula ou linha</span>
+        <textarea name="to" rows="2" required>maria@exemplo.com.br</textarea>
+      </label>
+      <div class="grid two">
+        <label>Cc <textarea name="cc" rows="2" placeholder="joao@exemplo.com.br"></textarea></label>
+        <label>Bcc <textarea name="bcc" rows="2" placeholder="ana@exemplo.com.br"></textarea></label>
+      </div>
+
+      <fieldset class="inline">
+        <legend>Formato dos destinatários</legend>
+        <label class="radio"><input type="radio" name="format" value="array" checked> Array <code>["a", "b"]</code></label>
+        <label class="radio"><input type="radio" name="format" value="string"> String <code>"a, b"</code></label>
+      </fieldset>
+
+      <label>Subject <input name="subject" value="Teste do Mailer App" required></label>
+
+      <div class="body-editor">
+        <label>Corpo HTML
+          <textarea name="html" id="html" rows="9" spellcheck="false">{{.SampleHTML}}</textarea>
+        </label>
+        <div class="preview">
+          <span class="preview-label">Pré-visualização</span>
+          <iframe id="html-preview" sandbox title="Pré-visualização do corpo"></iframe>
+        </div>
+      </div>
+
+      <label>Anexos <input type="file" name="attachments" multiple></label>
+
+      <fieldset>
+        <legend>Callbacks</legend>
+        <div class="callback-row">
+          <label class="check"><input type="checkbox" name="successCallbackEnabled" checked> Sucesso</label>
+          <input name="successCallbackUrl" value="{{.CallbackSuccessURL}}" aria-label="URL do callback de sucesso">
+        </div>
+        <div class="callback-row">
+          <label class="check"><input type="checkbox" name="failureCallbackEnabled" checked> Falha</label>
+          <input name="failureCallbackUrl" value="{{.CallbackFailureURL}}" aria-label="URL do callback de falha">
+        </div>
+        <label>Authorization <span class="hint">enviado nos dois callbacks</span>
+          <input name="callbackAuthorization" value="Bearer token-de-teste">
+        </label>
+      </fieldset>
+
+      <label class="check danger"><input type="checkbox" name="invalidBody"> Simular falha (corpo não base64)</label>
+
+      <div class="actions">
+        <button type="submit" id="send-button">Publicar na fila</button>
+      </div>
+    </form>
+    <div id="result" aria-live="polite"></div>
+  </section>
+
+  <section class="side">
+    <div class="card">
+      <div class="card-head">
+        <h2>Callbacks recebidos</h2>
+        <button class="ghost" data-clear="/partials/callbacks/clear" data-target="callbacks">Limpar</button>
+      </div>
+      <div id="callbacks" data-src="/partials/callbacks" data-poll></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Caixa do Mailpit</h2>
+        <div class="head-actions">
+          <a class="ghost" href="{{.MailpitPublicURL}}" target="_blank" rel="noopener">Abrir Mailpit</a>
+          <button class="ghost" data-clear="/partials/inbox/clear" data-target="inbox">Limpar</button>
+        </div>
+      </div>
+      <p class="hint">Recebe os emails quando <code>MAILER_ENV=smtp</code>.</p>
+      <div id="inbox" data-src="/partials/inbox" data-poll></div>
+    </div>
+  </section>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
