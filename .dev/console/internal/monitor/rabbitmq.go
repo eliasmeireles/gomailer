@@ -27,6 +27,8 @@ type QueueStats struct {
 
 // DeadLetter is a message in the dead-letter queue with the failure recorded by the mailer.
 type DeadLetter struct {
+	// Source is the transport holding the message: "rabbitmq" or "kafka".
+	Source    string
 	MessageID string
 	Attempt   int
 	ErrorCode string
@@ -97,6 +99,7 @@ func (r *RabbitMQ) PeekDeadLetters(ctx context.Context) ([]DeadLetter, error) {
 		headers := message.Properties.Headers
 		failedAt, _ := time.Parse(time.RFC3339, stringHeader(headers, "x-failed-at"))
 		letters = append(letters, DeadLetter{
+			Source:    "rabbitmq",
 			MessageID: message.Properties.MessageID,
 			Attempt:   intHeader(headers, "x-attempt"),
 			ErrorCode: stringHeader(headers, "x-error-code"),

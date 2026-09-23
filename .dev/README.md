@@ -4,8 +4,9 @@ Runs the whole flow in Docker, using the same image that is deployed (built from
 
 | Service | Purpose | URL |
 |---|---|---|
-| `rabbitmq` | Queue `mailer-service` | UI http://localhost:15672 (`guest` / `guest`) |
-| `mailer` | The app, configured by `env/<MAILER_ENV>.env`, with the `rabbitmq` and `http` sources | Health http://localhost:8089/readyz · API http://localhost:8090/v1/emails (token `dev-token`) |
+| `rabbitmq` | Queue `mailer-service` (+ retry queues and DLQ) | UI http://localhost:15672 (`guest` / `guest`) |
+| `kafka` | Topics `mailer-service`, `.retry`, `.dlq` (KRaft, single node) | `localhost:9094` |
+| `mailer` | The app, configured by `env/<MAILER_ENV>.env`, with the `rabbitmq`, `kafka` and `http` sources | Health http://localhost:8089/readyz · API http://localhost:8090/v1/emails (token `dev-token`) |
 | `mailpit` | Fake SMTP server with implicit TLS, catches every email; chaos enabled to inject SMTP errors | UI http://localhost:8025 |
 | `console` | Web console: publishes emails and follows status, callbacks and inbox | http://localhost:3000 |
 | `mockapi` | Fake Resend-compatible API that fails on demand (`MAILER_ENV=resend-mock`) | http://localhost:9110/state |
@@ -28,17 +29,17 @@ make dev-down               # stop everything and drop volumes
 
 A Go web app (`console/`) that acts as an external producer: it builds messages in the mailer contract and publishes them straight to the queue over AMQP.
 
-- **Enviar via**: RabbitMQ (publishes to the queue) or HTTP (calls `POST /v1/emails` and shows the synchronous response: status, `errorCode`, `cause`).
+- **Enviar via**: RabbitMQ (publishes to the queue), Kafka (produces to the topic) or HTTP (calls `POST /v1/emails` and shows the synchronous response: status, `errorCode`, `cause`).
 - Form with `id`, `from`, `to`/`cc`/`bcc` (sent as array or comma-separated string), subject, HTML body with live preview, attachments, success/failure callbacks and a "simulate failure" switch (non-base64 body).
-- Header pills with the selected `MAILER_ENV`, mailer readiness, queue size, consumers, messages waiting in retry queues and in the DLQ.
+- Header pills with the selected `MAILER_ENV`, mailer readiness and, for RabbitMQ and Kafka, pending messages, consumers, messages waiting to be retried and in the DLQ.
 - **Simular falhas**: Mailpit chaos per SMTP step (4xx temporary or 5xx permanent) and the mock API failing the next N requests with a Resend error (429, 503, 422, 403, 401).
-- Panels for the dead-letter queue (error code, attempts, cause; purge), the received callbacks (sent/failed with errorCode and cause) and the Mailpit inbox (to/cc/bcc, attachments), refreshed every 3s.
+- Panels for the dead letters of RabbitMQ and Kafka (source, error code, attempts, cause; purge), the received callbacks (sent/failed with errorCode and cause) and the Mailpit inbox (to/cc/bcc, attachments), refreshed every 3s.
 
 Its defaults follow `MAILER_ENV` (e.g. `from` is `onboarding@resend.dev` for Resend). Run its tests with `cd .dev/console && go test ./...`.
 
 ## HTTP API
 
-The mailer runs with `MAILER_SOURCES=rabbitmq,http`. Call the API directly:
+The mailer runs with `MAILER_SOURCES=rabbitmq,http,kafka`. Call the API directly:
 
 ```bash
 curl -X POST http://localhost:8090/v1/emails -H "Authorization: Bearer dev-token" -H "Content-Type: application/json" \
@@ -49,7 +50,7 @@ Override the sources or the token with `MAILER_SOURCES=http make dev-up` and `HT
 
 ## Test Scenarios
 
-The mailer runs with short retries in the stack (`MAILER_MAX_ATTEMPTS=3`, waits of 5s and 10s; override with the same variables). Use **Simular falhas** in the console, then send an email:
+The mailer runs with short retries in the stack (`MAILER_MAX_ATTEMPTS=3`, waits of 5s and 10s; override with the same variables). Use **Simular falhas** in the console, then send an email through any channel (RabbitMQ, Kafka or HTTP):
 
 | Scenario | Setup | Expected |
 |---|---|---|
@@ -58,6 +59,7 @@ The mailer runs with short retries in the stack (`MAILER_MAX_ATTEMPTS=3`, waits 
 | Permanent failure | `smtp`: recipient `550` · or `resend-mock`: `422` | No retry; failure callback with `smtp_receiver_rejected` / `api_invalid_receiver`, or DLQ |
 | Invalid message | **Simular falha (corpo não base64)** | `message_invalid_body`, no retry |
 | Synchronous API | Send via HTTP with any failure | Immediate response with the mapped status (e.g. 503), no retry |
+| Invalid JSON on Kafka | `echo '{nope' \| docker compose -f .dev/docker-compose.yaml exec -T kafka /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic mailer-service` | Kafka DLQ with `message_invalid_json` |
 
 ## Environments
 
@@ -116,4 +118,4 @@ make dev-publish MESSAGE=invalid-body   # failure callback answers 500 -> messag
 
 ## Useful Overrides
 
-Host ports can be changed with `RABBITMQ_PORT`, `RABBITMQ_UI_PORT`, `MAILPIT_UI_PORT`, `CALLBACK_PORT`, `MOCKAPI_PORT`, `MAILER_HEALTH_PORT`, `MAILER_API_PORT` and `CONSOLE_PORT`.
+Host ports can be changed with `RABBITMQ_PORT`, `RABBITMQ_UI_PORT`, `MAILPIT_UI_PORT`, `CALLBACK_PORT`, `MOCKAPI_PORT`, `KAFKA_PORT`, `MAILER_HEALTH_PORT`, `MAILER_API_PORT` and `CONSOLE_PORT`.

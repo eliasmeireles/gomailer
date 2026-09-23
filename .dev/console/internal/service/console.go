@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"github.com/eliasmeireles/gomailer/dev/console/internal/api"
 	"github.com/eliasmeireles/gomailer/dev/console/internal/message"
@@ -59,15 +60,17 @@ type HealthChecker interface {
 
 // Dependencies are the clients the console uses; NewID generates ids for messages without one.
 type Dependencies struct {
-	Publisher Publisher
-	API       APIClient
-	Queues    QueueMonitor
-	Inbox     Inbox
-	SMTPChaos SMTPChaos
-	MockAPI   MockAPI
-	Callbacks CallbackLog
-	Health    HealthChecker
-	NewID     func() string
+	Publisher      Publisher
+	KafkaPublisher Publisher
+	KafkaQueues    QueueMonitor
+	API            APIClient
+	Queues         QueueMonitor
+	Inbox          Inbox
+	SMTPChaos      SMTPChaos
+	MockAPI        MockAPI
+	Callbacks      CallbackLog
+	Health         HealthChecker
+	NewID          func() string
 }
 
 // Status is the stack overview shown in the console header.
@@ -75,6 +78,8 @@ type Status struct {
 	MailerReady bool
 	Queue       monitor.QueueStats
 	QueueError  string
+	Kafka       monitor.QueueStats
+	KafkaError  string
 }
 
 // SendResult is what the console did with the email. Response is set for the HTTP channel.
@@ -104,6 +109,10 @@ func (c *Console) Send(ctx context.Context, form message.Form) (SendResult, erro
 
 	result := SendResult{Email: email, Channel: form.Channel}
 	switch form.Channel {
+	case message.ChannelKafka:
+		if err := c.deps.KafkaPublisher.Publish(ctx, email); err != nil {
+			return SendResult{}, err
+		}
 	case message.ChannelHTTP:
 		response, err := c.deps.API.Send(ctx, email)
 		if err != nil {
@@ -119,15 +128,15 @@ func (c *Console) Send(ctx context.Context, form message.Form) (SendResult, erro
 	return result, nil
 }
 
-// Status returns mailer readiness and queue stats; a queue error is reported, not returned.
+// Status returns mailer readiness and the RabbitMQ and Kafka stats; errors are reported, not
+// returned, since only the enabled sources are expected to be reachable.
 func (c *Console) Status(ctx context.Context) Status {
 	status := Status{MailerReady: c.deps.Health.Ready(ctx)}
-	stats, err := c.deps.Queues.Stats(ctx)
-	if err != nil {
-		status.QueueError = err.Error()
-		return status
-	}
-	status.Queue = stats
+	var err error
+	status.Queue, err = c.deps.Queues.Stats(ctx)
+	status.QueueError = errorText(err)
+	status.Kafka, err = c.deps.KafkaQueues.Stats(ctx)
+	status.KafkaError = errorText(err)
 	return status
 }
 
@@ -151,12 +160,15 @@ func (c *Console) ClearCallbacks(ctx context.Context) error {
 	return c.deps.Callbacks.Clear(ctx)
 }
 
-// DeadLetters returns the first dead-lettered messages.
+// DeadLetters returns the first dead-lettered messages of RabbitMQ and Kafka; the letters read
+// are returned even when one of them fails.
 func (c *Console) DeadLetters(ctx context.Context) ([]monitor.DeadLetter, error) {
-	return c.deps.Queues.PeekDeadLetters(ctx)
+	rabbit, rabbitErr := c.deps.Queues.PeekDeadLetters(ctx)
+	kafka, kafkaErr := c.deps.KafkaQueues.PeekDeadLetters(ctx)
+	return append(rabbit, kafka...), errors.Join(rabbitErr, kafkaErr)
 }
 
-// PurgeDeadLetters empties the dead-letter queue.
+// PurgeDeadLetters empties the RabbitMQ dead-letter queue and the Kafka dead-letter topic.
 func (c *Console) PurgeDeadLetters(ctx context.Context) error {
-	return c.deps.Queues.PurgeDeadLetters(ctx)
+	return errors.Join(c.deps.Queues.PurgeDeadLetters(ctx), c.deps.KafkaQueues.PurgeDeadLetters(ctx))
 }

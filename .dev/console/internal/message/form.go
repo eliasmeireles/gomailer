@@ -18,6 +18,8 @@ const (
 	ChannelRabbitMQ Channel = "rabbitmq"
 	// ChannelHTTP calls POST /v1/emails and waits for the delivery result.
 	ChannelHTTP Channel = "http"
+	// ChannelKafka produces to the mailer Kafka topic (asynchronous).
+	ChannelKafka Channel = "kafka"
 )
 
 // File is an uploaded attachment with its raw content.

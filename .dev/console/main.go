@@ -19,17 +19,28 @@ import (
 func main() {
 	cfg := config.Load()
 
+	kafkaPublisher, err := queue.NewKafkaPublisher(cfg.KafkaBrokers, cfg.KafkaTopic)
+	if err != nil {
+		log.Fatalf("console: %v", err)
+	}
+	kafkaMonitor, err := monitor.NewKafka(cfg.KafkaBrokers, cfg.KafkaTopic, cfg.KafkaGroupID)
+	if err != nil {
+		log.Fatalf("console: %v", err)
+	}
+
 	mailpit := monitor.NewMailpit(cfg.MailpitURL)
 	console := service.NewConsole(service.Dependencies{
-		Publisher: queue.NewPublisher(cfg.RabbitMQURL, cfg.Queue),
-		API:       api.NewClient(cfg.MailerAPIURL, cfg.MailerAPIKey),
-		Queues:    monitor.NewRabbitMQ(cfg.RabbitMQAPIURL, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.Queue),
-		Inbox:     mailpit,
-		SMTPChaos: mailpit,
-		MockAPI:   monitor.NewMockAPI(cfg.MockAPIURL),
-		Callbacks: monitor.NewCallbacks(cfg.CallbackServerURL),
-		Health:    monitor.NewHealth(cfg.MailerHealthURL),
-		NewID:     message.NewID,
+		Publisher:      queue.NewPublisher(cfg.RabbitMQURL, cfg.Queue),
+		KafkaPublisher: kafkaPublisher,
+		KafkaQueues:    kafkaMonitor,
+		API:            api.NewClient(cfg.MailerAPIURL, cfg.MailerAPIKey),
+		Queues:         monitor.NewRabbitMQ(cfg.RabbitMQAPIURL, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.Queue),
+		Inbox:          mailpit,
+		SMTPChaos:      mailpit,
+		MockAPI:        monitor.NewMockAPI(cfg.MockAPIURL),
+		Callbacks:      monitor.NewCallbacks(cfg.CallbackServerURL),
+		Health:         monitor.NewHealth(cfg.MailerHealthURL),
+		NewID:          message.NewID,
 	})
 
 	server, err := web.NewServer(console, web.Settings{

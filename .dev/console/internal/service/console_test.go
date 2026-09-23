@@ -38,14 +38,16 @@ type fakeQueues struct {
 	stats    monitor.QueueStats
 	statsErr error
 	letters  []monitor.DeadLetter
+	peekErr  error
 	purged   bool
+	purgeErr error
 }
 
 func (f *fakeQueues) Stats(context.Context) (monitor.QueueStats, error) { return f.stats, f.statsErr }
 func (f *fakeQueues) PeekDeadLetters(context.Context) ([]monitor.DeadLetter, error) {
-	return f.letters, nil
+	return f.letters, f.peekErr
 }
-func (f *fakeQueues) PurgeDeadLetters(context.Context) error { f.purged = true; return nil }
+func (f *fakeQueues) PurgeDeadLetters(context.Context) error { f.purged = true; return f.purgeErr }
 
 type fakeInbox struct {
 	messages []monitor.InboxMessage
@@ -97,6 +99,8 @@ func (f fakeHealth) Ready(context.Context) bool { return f.ready }
 
 type fakes struct {
 	publisher *fakePublisher
+	kafka     *fakePublisher
+	kafkaQs   *fakeQueues
 	api       *fakeAPI
 	queues    *fakeQueues
 	inbox     *fakeInbox
@@ -106,12 +110,12 @@ type fakes struct {
 }
 
 func newFakes() *fakes {
-	return &fakes{&fakePublisher{}, &fakeAPI{}, &fakeQueues{}, &fakeInbox{}, &fakeSMTPChaos{}, &fakeMockAPI{}, &fakeCallbacks{}}
+	return &fakes{&fakePublisher{}, &fakePublisher{}, &fakeQueues{}, &fakeAPI{}, &fakeQueues{}, &fakeInbox{}, &fakeSMTPChaos{}, &fakeMockAPI{}, &fakeCallbacks{}}
 }
 
 func (f *fakes) console(ready bool) *Console {
 	return NewConsole(Dependencies{
-		Publisher: f.publisher, API: f.api, Queues: f.queues, Inbox: f.inbox, SMTPChaos: f.chaos,
+		Publisher: f.publisher, KafkaPublisher: f.kafka, KafkaQueues: f.kafkaQs, API: f.api, Queues: f.queues, Inbox: f.inbox, SMTPChaos: f.chaos,
 		MockAPI: f.mock, Callbacks: f.callbacks, Health: fakeHealth{ready: ready}, NewID: func() string { return "id-1" },
 	})
 }
@@ -131,6 +135,30 @@ func TestConsoleSend(t *testing.T) {
 		assert.Equal(t, message.ChannelRabbitMQ, result.Channel)
 		assert.Nil(t, result.Response)
 		assert.Equal(t, []message.Email{result.Email}, f.publisher.published)
+	})
+
+	t.Run("given the kafka channel then produce to kafka", func(t *testing.T) {
+		f := newFakes()
+		form := validForm()
+		form.Channel = message.ChannelKafka
+
+		result, err := f.console(true).Send(context.Background(), form)
+
+		require.NoError(t, err)
+		assert.Equal(t, message.ChannelKafka, result.Channel)
+		assert.Equal(t, []message.Email{result.Email}, f.kafka.published)
+		assert.Empty(t, f.publisher.published)
+	})
+
+	t.Run("given a kafka error then return it", func(t *testing.T) {
+		f := newFakes()
+		f.kafka.err = errors.New("kafka down")
+		form := validForm()
+		form.Channel = message.ChannelKafka
+
+		_, err := f.console(true).Send(context.Background(), form)
+
+		require.EqualError(t, err, "kafka down")
 	})
 
 	t.Run("given the http channel then call the api and return its response", func(t *testing.T) {
@@ -184,14 +212,17 @@ func TestConsoleStatus(t *testing.T) {
 		f := newFakes()
 		f.queues.stats = monitor.QueueStats{Messages: 2, Consumers: 1, Retrying: 3, DeadLettered: 1}
 
-		assert.Equal(t, Status{MailerReady: true, Queue: f.queues.stats}, f.console(true).Status(context.Background()))
+		f.kafkaQs.stats = monitor.QueueStats{Messages: 1, Consumers: 1}
+
+		assert.Equal(t, Status{MailerReady: true, Queue: f.queues.stats, Kafka: f.kafkaQs.stats}, f.console(true).Status(context.Background()))
 	})
 
-	t.Run("given a queue error then report it", func(t *testing.T) {
+	t.Run("given queue errors then report each of them", func(t *testing.T) {
 		f := newFakes()
 		f.queues.statsErr = errors.New("management api down")
+		f.kafkaQs.statsErr = errors.New("kafka down")
 
-		assert.Equal(t, Status{QueueError: "management api down"}, f.console(false).Status(context.Background()))
+		assert.Equal(t, Status{QueueError: "management api down", KafkaError: "kafka down"}, f.console(false).Status(context.Background()))
 	})
 }
 
@@ -201,6 +232,7 @@ func TestConsolePanels(t *testing.T) {
 		f.inbox.messages = []monitor.InboxMessage{{ID: "m1"}}
 		f.callbacks.events = []monitor.CallbackEvent{{Path: "/failures"}}
 		f.queues.letters = []monitor.DeadLetter{{MessageID: "d1"}}
+		f.kafkaQs.letters = []monitor.DeadLetter{{MessageID: "k1", Source: "kafka"}}
 		console := f.console(true)
 
 		messages, err := console.Inbox(context.Background())
@@ -215,9 +247,33 @@ func TestConsolePanels(t *testing.T) {
 
 		assert.Equal(t, f.inbox.messages, messages)
 		assert.Equal(t, f.callbacks.events, events)
-		assert.Equal(t, f.queues.letters, letters)
+		assert.Equal(t, append(f.queues.letters, f.kafkaQs.letters...), letters)
+		assert.True(t, f.kafkaQs.purged)
 		assert.True(t, f.inbox.cleared)
 		assert.True(t, f.callbacks.cleared)
 		assert.True(t, f.queues.purged)
+	})
+}
+
+func TestConsoleDeadLettersPartialFailures(t *testing.T) {
+	t.Run("given kafka unavailable then return the rabbitmq letters with the kafka error", func(t *testing.T) {
+		f := newFakes()
+		f.queues.letters = []monitor.DeadLetter{{MessageID: "d1"}}
+		f.kafkaQs.peekErr = errors.New("kafka down")
+
+		letters, err := f.console(true).DeadLetters(context.Background())
+
+		require.EqualError(t, err, "kafka down")
+		assert.Equal(t, f.queues.letters, letters)
+	})
+
+	t.Run("given a purge failure then still purge the other side", func(t *testing.T) {
+		f := newFakes()
+		f.queues.purgeErr = errors.New("rabbitmq down")
+
+		err := f.console(true).PurgeDeadLetters(context.Background())
+
+		require.EqualError(t, err, "rabbitmq down")
+		assert.True(t, f.kafkaQs.purged)
 	})
 }

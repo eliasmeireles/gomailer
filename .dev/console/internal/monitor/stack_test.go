@@ -64,7 +64,7 @@ func TestRabbitMQ(t *testing.T) {
 		assert.Equal(t, "/api/queues/%2F/mailer-service.dlq/get", captured.uri)
 		assert.Equal(t, "ack_requeue_true", captured.body["ackmode"])
 		assert.Equal(t, []DeadLetter{{
-			MessageID: "m1", Attempt: 3, ErrorCode: "api_rate_limited", Cause: "too many",
+			Source: "rabbitmq", MessageID: "m1", Attempt: 3, ErrorCode: "api_rate_limited", Cause: "too many",
 			FailedAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC), Payload: "{}",
 		}}, letters)
 	})

@@ -12,7 +12,10 @@ import (
 	"github.com/eliasmeireles/gomailer/dev/console/internal/message"
 )
 
-const dialTimeout = 5 * time.Second
+const (
+	dialTimeout    = 5 * time.Second
+	publishTimeout = 10 * time.Second
+)
 
 // Publisher opens a short-lived connection per call, which is enough for a dev tool and
 // survives broker restarts without reconnect logic.

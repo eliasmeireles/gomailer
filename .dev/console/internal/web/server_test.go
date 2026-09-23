@@ -229,7 +229,11 @@ func TestSend(t *testing.T) {
 
 func TestPanels(t *testing.T) {
 	t.Run("given status then render pills", func(t *testing.T) {
-		console := &fakeConsole{status: service.Status{MailerReady: true, Queue: monitor.QueueStats{Messages: 3, Consumers: 1, Retrying: 2, DeadLettered: 5}}}
+		console := &fakeConsole{status: service.Status{
+			MailerReady: true,
+			Queue:       monitor.QueueStats{Messages: 3, Consumers: 1, Retrying: 2, DeadLettered: 5},
+			KafkaError:  "kafka down",
+		}}
 
 		body := serve(newTestServer(t, console, "resend"), httptest.NewRequest(http.MethodGet, "/partials/status", nil)).Body.String()
 
@@ -238,6 +242,7 @@ func TestPanels(t *testing.T) {
 		assert.Contains(t, body, "<strong>resend</strong>")
 		assert.Contains(t, body, "em retry <strong>2</strong>")
 		assert.Contains(t, body, "DLQ <strong>5</strong>")
+		assert.Contains(t, body, `title="kafka down">Kafka indisponível`)
 	})
 
 	t.Run("given a queue error then render the unavailable pill", func(t *testing.T) {
@@ -246,7 +251,7 @@ func TestPanels(t *testing.T) {
 		body := serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/status", nil)).Body.String()
 
 		assert.Contains(t, body, "mailer indisponível")
-		assert.Contains(t, body, "fila indisponível")
+		assert.Contains(t, body, "RabbitMQ indisponível")
 	})
 
 	t.Run("given inbox messages then render them with mailpit links", func(t *testing.T) {
@@ -357,12 +362,13 @@ func postForm(handler http.Handler, path string, values url.Values) string {
 
 func TestDeadLetterPanel(t *testing.T) {
 	t.Run("given dead letters then render code, attempts and cause", func(t *testing.T) {
-		console := &fakeConsole{letters: []monitor.DeadLetter{{MessageID: "m1", Attempt: 3, ErrorCode: "api_rate_limited", Cause: "too many", FailedAt: time.Now()}}}
+		console := &fakeConsole{letters: []monitor.DeadLetter{{Source: "kafka", MessageID: "m1", Attempt: 3, ErrorCode: "api_rate_limited", Cause: "too many", FailedAt: time.Now()}}}
 
 		body := serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/dlq", nil)).Body.String()
 
 		assert.Contains(t, body, "api_rate_limited")
 		assert.Contains(t, body, "3 tentativa(s)")
+		assert.Contains(t, body, `<span class="badge source">kafka</span>`)
 		assert.Contains(t, body, "too many")
 	})
 

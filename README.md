@@ -3,11 +3,11 @@
 [![CI](https://github.com/eliasmeireles/gomailer/actions/workflows/ci.yml/badge.svg)](https://github.com/eliasmeireles/gomailer/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A lightweight Go email service that receives requests from RabbitMQ or an HTTP API and delivers them through SMTP or a provider HTTP API (Resend, Zoho Mail, ZeptoMail), reporting the outcome to optional success/failure callbacks.
+A lightweight Go email service that receives requests from RabbitMQ, Kafka or an HTTP API and delivers them through SMTP or a provider HTTP API (Resend, Zoho Mail, ZeptoMail), reporting the outcome to optional success/failure callbacks.
 
 ## Features
 
-- **Multiple sources**: RabbitMQ queue (auto-reconnect with backoff) and a synchronous HTTP API (`POST /v1/emails`), enabled together or alone
+- **Multiple sources**: RabbitMQ queue, Kafka topic and a synchronous HTTP API (`POST /v1/emails`), enabled together or alone
 - **Retries and dead-letter queue**: temporary failures are retried with exponential backoff; final unhandled failures go to a DLQ
 - **Pluggable transports**: SMTP (implicit TLS) or HTTP API clients selected by configuration
 - **API clients**: `resend`, `zoho` (Zoho Mail API, OAuth 2.0) and `zeptomail`, with a registry for adding new ones
@@ -20,6 +20,7 @@ A lightweight Go email service that receives requests from RabbitMQ or an HTTP A
 
 ```
 producer ──► RabbitMQ (mailer-service) ──► MailerConsumer ──┐
+producer ──► Kafka (mailer-service) ─────► MailerConsumer ──┤
 client   ──► POST /v1/emails (HTTP API) ───────────────────┴──► mailer.Service ──► Sender (smtp | resend | zoho | zeptomail)
                                                                    │
                                                                    ├── on success ──► DeliveryNotifier ──► callback.success.url
@@ -32,15 +33,21 @@ Every source uses the same message contract, callbacks and error codes.
 
 Queued requests that fail with a **temporary** error code (`api_connection_failed`, `api_rate_limited`, `api_provider_unavailable`, `smtp_connection_failed`, `smtp_temporary_failure`) are retried up to `MAILER_MAX_ATTEMPTS` times, waiting `MAILER_RETRY_BASE_DELAY` doubled per attempt (default 30s, 1m, 2m, 4m). Callbacks are only called with the final outcome.
 
-| Outcome | RabbitMQ action |
-|---|---|
-| Email sent | ack; `callback.success` notified (a failing success callback is only logged, never resent) |
-| Temporary failure with attempts left | republished to `<queue>.retry.<delay>`, then ack |
-| Final failure, `callback.failure` answered 2xx | ack (failure handed to the callback) |
-| Final failure, no `callback.failure` or it failed | republished to `<queue>.dlq` with `x-error-code`, `x-error-cause`, `x-attempt`, `x-failed-at` headers, then ack |
-| Invalid JSON message | `<queue>.dlq` (`message_invalid_json`) |
+| Outcome | RabbitMQ | Kafka |
+|---|---|---|
+| Email sent | ack | commit |
+| Temporary failure with attempts left | republished to `<queue>.retry.<delay>`, then ack | produced to `<topic>.retry` with `x-attempt` and `x-not-before`, then commit |
+| Final failure, `callback.failure` answered 2xx | ack | commit |
+| Final failure, no `callback.failure` or it failed | republished to `<queue>.dlq`, then ack | produced to `<topic>.dlq`, then commit |
+| Invalid JSON message | `<queue>.dlq` (`message_invalid_json`) | `<topic>.dlq` (`message_invalid_json`) |
 
-The retry queues need no plugin: each one has a message TTL equal to its delay and dead-letters expired messages back to the main queue; the delay is part of the name (`mailer-service.retry.30s`), so changing the policy creates new queues instead of conflicting with existing ones. Retries and dead letters are republished with publisher confirms; if the broker does not confirm, the original message is requeued. The HTTP API never retries: it answers the first attempt.
+`callback.success` is notified on success (a failing success callback is only logged, never resent). Dead letters carry the `x-error-code`, `x-error-cause`, `x-attempt` and `x-failed-at` headers.
+
+The retry queues need no plugin: each one has a message TTL equal to its delay and dead-letters expired messages back to the main queue; the delay is part of the name (`mailer-service.retry.30s`), so changing the policy creates new queues instead of conflicting with existing ones. Retries and dead letters are republished with publisher confirms; if the broker does not confirm, the original message is requeued.
+
+On Kafka, the group `<group>` consumes `<topic>` and `<group>-retry` consumes `<topic>.retry`, processing each retry once its `x-not-before` time has passed. Offsets are committed only after a record is resolved (sent, handed to the failure callback, or produced to the retry/dead-letter topic), and rebalances are blocked while a batch is in flight, so the same record is not delivered by two members at once. Delivery is at-least-once: a crash between sending and committing may send an email again. The key of the original record is kept, so retries stay on the same partition.
+
+The HTTP API never retries: it answers the first attempt.
 
 ## Queue Message
 
@@ -162,10 +169,25 @@ Requests without `id` get a generated UUID, returned in the response. Callbacks 
 
 | Variable | Default | Description |
 |---|---|---|
-| `MAILER_SOURCES` | `rabbitmq` | Comma-separated sources to enable: `rabbitmq`, `http` |
+| `MAILER_SOURCES` | `rabbitmq` | Comma-separated sources to enable: `rabbitmq`, `kafka`, `http` |
 | `HTTP_API_PORT` | `8081` | HTTP source port |
 | `HTTP_API_KEYS` | — | Required for `http`: comma-separated accepted Bearer tokens |
 | `HTTP_API_MAX_BODY_BYTES` | `26214400` | Max request body (25 MiB) |
+
+### Kafka (`MAILER_SOURCES` includes `kafka`)
+
+| Variable | Default | Description |
+|---|---|---|
+| `KAFKA_BROKERS` | — | Required: comma-separated bootstrap brokers |
+| `KAFKA_TOPIC` | `mailer-service` | Main topic (retry: `<topic>.retry`, dead-letter: `<topic>.dlq`) |
+| `KAFKA_GROUP_ID` | `gomailer` | Consumer group (the retry topic uses `<group>-retry`) |
+| `KAFKA_CREATE_TOPICS` | `false` | Create missing topics on startup |
+| `KAFKA_TOPIC_PARTITIONS` / `KAFKA_TOPIC_REPLICATION` | `3` / `1` | Used only when creating topics |
+| `KAFKA_TLS` | `false` | Connect with TLS |
+| `KAFKA_SASL_MECHANISM` | — | `plain`, `scram-sha-256` or `scram-sha-512` |
+| `KAFKA_SASL_USER` / `KAFKA_SASL_PASS` | — | SASL credentials (secret) |
+
+Messages are the same JSON as the [queue message](#queue-message); use the email `id` as record key to keep related emails ordered.
 
 ### Retries
 
@@ -274,7 +296,7 @@ To build and push your own multi-arch image: `make build IMAGE=<registry>/<name>
 
 gomailer is configured only through environment variables, so it runs anywhere containers run. In Kubernetes:
 
-- Store credentials (`SMTP_SERVER_PASS`, `RESEND_API_KEY`, `ZOHO_*`, `ZEPTOMAIL_API_KEY`, `RABBITMQ_PASS`) in a Secret or an external secret manager, and the rest in plain env vars.
+- Store credentials (`SMTP_SERVER_PASS`, `RESEND_API_KEY`, `ZOHO_*`, `ZEPTOMAIL_API_KEY`, `RABBITMQ_PASS`, `KAFKA_SASL_PASS`, `HTTP_API_KEYS`) in a Secret or an external secret manager, and the rest in plain env vars.
 - Use `/healthz` as the liveness probe and `/readyz` (every enabled source ready) as the readiness/startup probe on `HEALTH_PORT`.
 - When the HTTP source is enabled, keep its Service internal or behind an authenticated gateway, and store `HTTP_API_KEYS` as a secret.
 - Run a single transport per deployment; switch transports by changing `MAILER_TRANSPORT` / `MAILER_API_CLIENT`.

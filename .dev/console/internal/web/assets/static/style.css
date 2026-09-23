@@ -84,6 +84,9 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 .pill strong { color: var(--text); }
 .pill.ok { background: var(--ok-bg); color: var(--ok-text); border-color: transparent; }
 .pill.bad { background: var(--bad-bg); color: var(--bad-text); border-color: transparent; }
+.pill-group { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; padding-left: 6px; border-left: 1px solid var(--border); }
+.pill-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+.badge.source { background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
 .pill.warn { background: var(--warn-bg); color: var(--warn-text); border-color: transparent; }
 
 .layout {
