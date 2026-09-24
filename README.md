@@ -369,6 +369,8 @@ gomailer is configured only through environment variables, so it runs anywhere c
 - Store credentials (`SMTP_SERVER_PASS`, `RESEND_API_KEY`, `ZOHO_*`, `ZEPTOMAIL_API_KEY`, `RABBITMQ_PASS`, `KAFKA_SASL_PASS`, `HTTP_API_KEYS`) in a Secret or an external secret manager, and the rest in plain env vars.
 - Use `/healthz` as the liveness probe and `/readyz` (every enabled source ready) as the readiness/startup probe on `HEALTH_PORT`.
 - When the HTTP source is enabled, keep its Service internal or behind an authenticated gateway, and store `HTTP_API_KEYS` as a secret.
+- Replicas can scale horizontally without sending an email twice in normal operation: RabbitMQ delivers each message to a single consumer (prefetch 1, ack after the outcome), and Kafka assigns each partition to a single member of the consumer group (commit after the outcome). Kafka parallelism is capped by the partition count (`KAFKA_TOPIC_PARTITIONS` when gomailer creates the topic).
+- Delivery is at-least-once: if a replica dies after the provider accepted an email but before the ack/commit, the message is redelivered and sent again. Set a stable `id` so receivers of callbacks can deduplicate.
 - Run a single transport per deployment; switch transports by changing `MAILER_TRANSPORT` / `MAILER_API_CLIENT`.
 
 ## Contributing

@@ -17,6 +17,9 @@ import (
 const (
 	initialBackoff = 1 * time.Second
 	maxBackoff     = 30 * time.Second
+	// prefetchCount keeps one unacked delivery per consumer: messages are handled one at a time,
+	// so replicas share the queue evenly and a crash redelivers only the in-flight message.
+	prefetchCount = 1
 )
 
 // Consumer is a RabbitMQ consumer with retry-on-connect, auto-reconnect on drop, delayed
@@ -85,7 +88,7 @@ func (c *Consumer) dialAndOpen() error {
 }
 
 // openChannel opens a channel in confirm mode (retries and dead letters are republished with
-// broker confirmation) and declares the topology.
+// broker confirmation), limits unacked deliveries to prefetchCount and declares the topology.
 func (c *Consumer) openChannel(conn *amqp.Connection) (*amqp.Channel, error) {
 	ch, err := conn.Channel()
 	if err != nil {
@@ -94,6 +97,10 @@ func (c *Consumer) openChannel(conn *amqp.Connection) (*amqp.Channel, error) {
 	if err := ch.Confirm(false); err != nil {
 		_ = ch.Close()
 		return nil, fmt.Errorf("enable publisher confirms: %w", err)
+	}
+	if err := ch.Qos(prefetchCount, 0, false); err != nil {
+		_ = ch.Close()
+		return nil, fmt.Errorf("set prefetch: %w", err)
 	}
 	if err := c.topology.declare(ch); err != nil {
 		_ = ch.Close()
