@@ -20,7 +20,7 @@ import (
 	"github.com/eliasmeireles/gomailer/internal/core/model"
 )
 
-const validBody = `{"id":"pedido-1","from":"no-reply@exemplo.com.br","receiver":["maria@exemplo.com.br"],"subject":"Oi","body":"PHA+T2k8L3A+"}`
+const validBody = `{"id":"order-1","from":"no-reply@example.com","receiver":["jane@example.com"],"subject":"Hi","body":"PHA+SGk8L3A+"}`
 
 type fakeDeliverer struct {
 	received model.SendEmailData
@@ -38,7 +38,7 @@ func (f *fakeDeliverer) DeliverOnce(data model.SendEmailData) mailer.Outcome {
 
 func newTestServer(deliverer *fakeDeliverer, maxBody int64) *Server {
 	cfg := config.HTTPAPIConfig{Port: "0", Keys: []string{"token-a", "token-b"}, MaxBodyBytes: maxBody}
-	return NewServer(cfg, deliverer, func() string { return "id-gerado" })
+	return NewServer(cfg, deliverer, func() string { return "generated-id" })
 }
 
 func post(server *Server, auth, body string) *httptest.ResponseRecorder {
@@ -60,23 +60,23 @@ func decodeEvent(t *testing.T, recorder *httptest.ResponseRecorder) model.Delive
 
 func TestEmailsEndpoint(t *testing.T) {
 	t.Run("given a valid request then deliver it and answer 200 with the sent event", func(t *testing.T) {
-		deliverer := &fakeDeliverer{outcome: mailer.Outcome{Event: model.DeliveryEvent{Subject: "Oi", Status: model.StatusSent}}}
+		deliverer := &fakeDeliverer{outcome: mailer.Outcome{Event: model.DeliveryEvent{Subject: "Hi", Status: model.StatusSent}}}
 
 		response := post(newTestServer(deliverer, 1<<20), "Bearer token-b", validBody)
 
 		assert.Equal(t, http.StatusOK, response.Code)
 		assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
-		assert.Equal(t, model.DeliveryEvent{ID: "pedido-1", Subject: "Oi", Status: model.StatusSent}, decodeEvent(t, response))
-		assert.Equal(t, model.Recipients{"maria@exemplo.com.br"}, deliverer.received.Receiver)
+		assert.Equal(t, model.DeliveryEvent{ID: "order-1", Subject: "Hi", Status: model.StatusSent}, decodeEvent(t, response))
+		assert.Equal(t, model.Recipients{"jane@example.com"}, deliverer.received.Receiver)
 	})
 
 	t.Run("given a request without id then generate one", func(t *testing.T) {
 		deliverer := &fakeDeliverer{outcome: mailer.Outcome{}}
 
-		response := post(newTestServer(deliverer, 1<<20), "Bearer token-a", `{"from":"a@exemplo.com.br","receiver":"b@exemplo.com.br"}`)
+		response := post(newTestServer(deliverer, 1<<20), "Bearer token-a", `{"from":"a@example.com","receiver":"b@example.com"}`)
 
-		assert.Equal(t, "id-gerado", deliverer.received.ID)
-		assert.Equal(t, "id-gerado", decodeEvent(t, response).ID)
+		assert.Equal(t, "generated-id", deliverer.received.ID)
+		assert.Equal(t, "generated-id", decodeEvent(t, response).ID)
 	})
 
 	t.Run("given a delivery failure then answer with the mapped status and the failed event", func(t *testing.T) {

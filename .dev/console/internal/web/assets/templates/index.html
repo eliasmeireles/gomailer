@@ -13,7 +13,7 @@
     <span class="logo">✉</span>
     <div>
       <h1>Mailer Dev Console</h1>
-      <p>Publica na fila <code>{{.Queue}}</code> e acompanha o mailer local</p>
+      <p>Publishes to <code>{{.Queue}}</code> and follows the local mailer</p>
     </div>
   </div>
   <div id="status" data-src="/partials/status" data-poll></div>
@@ -21,71 +21,71 @@
 
 <main class="layout">
   <section class="card compose">
-    <h2>Novo email</h2>
+    <h2>New email</h2>
     <form id="send-form" enctype="multipart/form-data">
       <fieldset class="inline">
-        <legend>Enviar via</legend>
-        <label class="radio"><input type="radio" name="channel" value="rabbitmq" checked> RabbitMQ <span class="hint">fila, assíncrono</span></label>
-        <label class="radio"><input type="radio" name="channel" value="kafka"> Kafka <span class="hint">tópico, assíncrono</span></label>
-        <label class="radio"><input type="radio" name="channel" value="http"> HTTP <span class="hint"><code>POST /v1/emails</code>, síncrono</span></label>
+        <legend>Send via</legend>
+        <label class="radio"><input type="radio" name="channel" value="rabbitmq" checked> RabbitMQ <span class="hint">queue, asynchronous</span></label>
+        <label class="radio"><input type="radio" name="channel" value="kafka"> Kafka <span class="hint">topic, asynchronous</span></label>
+        <label class="radio"><input type="radio" name="channel" value="http"> HTTP <span class="hint"><code>POST /v1/emails</code>, synchronous</span></label>
       </fieldset>
 
       <div class="grid two">
-        <label>ID <span class="hint">vazio = UUID automático</span>
-          <input name="id" placeholder="pedido-123-confirmacao">
+        <label>ID <span class="hint">empty = generated UUID</span>
+          <input name="id" placeholder="order-123-confirmation">
         </label>
         <label>From
           <input name="from" value="{{.DefaultFrom}}" required>
         </label>
       </div>
 
-      <label>To <span class="hint">separe por vírgula, ponto e vírgula ou linha</span>
-        <textarea name="to" rows="2" required>maria@exemplo.com.br</textarea>
+      <label>To <span class="hint">separate with commas, semicolons or new lines</span>
+        <textarea name="to" rows="2" required>jane@example.com</textarea>
       </label>
       <div class="grid two">
-        <label>Cc <textarea name="cc" rows="2" placeholder="joao@exemplo.com.br"></textarea></label>
-        <label>Bcc <textarea name="bcc" rows="2" placeholder="ana@exemplo.com.br"></textarea></label>
+        <label>Cc <textarea name="cc" rows="2" placeholder="john@example.com"></textarea></label>
+        <label>Bcc <textarea name="bcc" rows="2" placeholder="anna@example.com"></textarea></label>
       </div>
 
       <fieldset class="inline">
-        <legend>Formato dos destinatários</legend>
+        <legend>Recipients format</legend>
         <label class="radio"><input type="radio" name="format" value="array" checked> Array <code>["a", "b"]</code></label>
         <label class="radio"><input type="radio" name="format" value="string"> String <code>"a, b"</code></label>
       </fieldset>
 
-      <label>Subject <input name="subject" value="Teste do Mailer App" required></label>
+      <label>Subject <input name="subject" value="Mailer App test" required></label>
 
       <div class="body-editor">
-        <label>Corpo HTML
+        <label>HTML body
           <textarea name="html" id="html" rows="9" spellcheck="false">{{.SampleHTML}}</textarea>
         </label>
         <div class="preview">
-          <span class="preview-label">Pré-visualização</span>
-          <iframe id="html-preview" sandbox title="Pré-visualização do corpo"></iframe>
+          <span class="preview-label">Preview</span>
+          <iframe id="html-preview" sandbox title="Body preview"></iframe>
         </div>
       </div>
 
-      <label>Anexos <input type="file" name="attachments" multiple></label>
+      <label>Attachments <input type="file" name="attachments" multiple></label>
 
       <fieldset>
         <legend>Callbacks</legend>
         <div class="callback-row">
-          <label class="check"><input type="checkbox" name="successCallbackEnabled" checked> Sucesso</label>
-          <input name="successCallbackUrl" value="{{.CallbackSuccessURL}}" aria-label="URL do callback de sucesso">
+          <label class="check"><input type="checkbox" name="successCallbackEnabled" checked> Success</label>
+          <input name="successCallbackUrl" value="{{.CallbackSuccessURL}}" aria-label="Success callback URL">
         </div>
         <div class="callback-row">
-          <label class="check"><input type="checkbox" name="failureCallbackEnabled" checked> Falha</label>
-          <input name="failureCallbackUrl" value="{{.CallbackFailureURL}}" aria-label="URL do callback de falha">
+          <label class="check"><input type="checkbox" name="failureCallbackEnabled" checked> Failure</label>
+          <input name="failureCallbackUrl" value="{{.CallbackFailureURL}}" aria-label="Failure callback URL">
         </div>
-        <label>Authorization <span class="hint">enviado nos dois callbacks</span>
-          <input name="callbackAuthorization" value="Bearer token-de-teste">
+        <label>Authorization <span class="hint">sent with both callbacks</span>
+          <input name="callbackAuthorization" value="Bearer test-token">
         </label>
       </fieldset>
 
-      <label class="check danger"><input type="checkbox" name="invalidBody"> Simular falha (corpo não base64)</label>
+      <label class="check danger"><input type="checkbox" name="invalidBody"> Simulate failure (non-base64 body)</label>
 
       <div class="actions">
-        <button type="submit" id="send-button">Enviar</button>
+        <button type="submit" id="send-button">Send</button>
       </div>
     </form>
     <div id="result" aria-live="polite"></div>
@@ -93,36 +93,36 @@
 
   <section class="side">
     <div class="card">
-      <div class="card-head"><h2>Simular falhas</h2></div>
-      <p class="hint">Temporárias entram em retry (<code>MAILER_MAX_ATTEMPTS</code> tentativas); definitivas vão para o callback de falha ou para a DLQ.</p>
+      <div class="card-head"><h2>Simulate failures</h2></div>
+      <p class="hint">Temporary failures are retried (<code>MAILER_MAX_ATTEMPTS</code> attempts); permanent ones go to the failure callback or to the DLQ.</p>
       <div id="chaos" data-src="/partials/chaos"></div>
     </div>
 
     <div class="card">
       <div class="card-head">
         <h2>Dead-letter queue</h2>
-        <button class="ghost" data-clear="/partials/dlq/purge" data-target="dlq">Esvaziar</button>
+        <button class="ghost" data-clear="/partials/dlq/purge" data-target="dlq">Purge</button>
       </div>
       <div id="dlq" data-src="/partials/dlq" data-poll></div>
     </div>
 
     <div class="card">
       <div class="card-head">
-        <h2>Callbacks recebidos</h2>
-        <button class="ghost" data-clear="/partials/callbacks/clear" data-target="callbacks">Limpar</button>
+        <h2>Received callbacks</h2>
+        <button class="ghost" data-clear="/partials/callbacks/clear" data-target="callbacks">Clear</button>
       </div>
       <div id="callbacks" data-src="/partials/callbacks" data-poll></div>
     </div>
 
     <div class="card">
       <div class="card-head">
-        <h2>Caixa do Mailpit</h2>
+        <h2>Mailpit inbox</h2>
         <div class="head-actions">
-          <a class="ghost" href="{{.MailpitPublicURL}}" target="_blank" rel="noopener">Abrir Mailpit</a>
-          <button class="ghost" data-clear="/partials/inbox/clear" data-target="inbox">Limpar</button>
+          <a class="ghost" href="{{.MailpitPublicURL}}" target="_blank" rel="noopener">Open Mailpit</a>
+          <button class="ghost" data-clear="/partials/inbox/clear" data-target="inbox">Clear</button>
         </div>
       </div>
-      <p class="hint">Recebe os emails quando <code>MAILER_ENV=smtp</code>.</p>
+      <p class="hint">Receives the emails when <code>MAILER_ENV=smtp</code>.</p>
       <div id="inbox" data-src="/partials/inbox" data-poll></div>
     </div>
   </section>

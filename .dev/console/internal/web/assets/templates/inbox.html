@@ -1,6 +1,6 @@
 {{if .Error}}<div class="notice error">{{.Error}}</div>{{end}}
 {{if not .Messages}}
-  <p class="empty">Nenhum email na caixa.</p>
+  <p class="empty">No emails in the inbox.</p>
 {{else}}
   <ul class="list">
     {{range .Messages}}
@@ -9,10 +9,10 @@
           <a href="{{$.MailpitPublicURL}}/view/{{.ID}}" target="_blank" rel="noopener"><strong>{{.Subject}}</strong></a>
           <span class="time">{{clock .Created}}</span>
         </div>
-        <div class="meta">de {{.From.Address}} · para {{addresses .To}}</div>
+        <div class="meta">from {{.From.Address}} · to {{addresses .To}}</div>
         {{if .Cc}}<div class="meta">cc {{addresses .Cc}}</div>{{end}}
         {{if .Bcc}}<div class="meta">bcc {{addresses .Bcc}}</div>{{end}}
-        {{if .Attachments}}<div class="meta">📎 {{.Attachments}} anexo(s)</div>{{end}}
+        {{if .Attachments}}<div class="meta">📎 {{.Attachments}} attachment(s)</div>{{end}}
       </li>
     {{end}}
   </ul>

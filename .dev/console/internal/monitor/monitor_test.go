@@ -30,8 +30,8 @@ func newServer(t *testing.T, status int, body string, recorded *recordedRequest)
 func TestMailpit(t *testing.T) {
 	t.Run("given messages then list them", func(t *testing.T) {
 		recorded := &recordedRequest{}
-		server := newServer(t, http.StatusOK, `{"messages":[{"ID":"m1","Created":"2026-09-23T12:00:00Z","Subject":"Oi",
-			"From":{"Address":"no-reply@exemplo.com.br"},"To":[{"Address":"maria@exemplo.com.br"}],"Bcc":[{"Address":"ana@exemplo.com.br"}],"Attachments":1}]}`, recorded)
+		server := newServer(t, http.StatusOK, `{"messages":[{"ID":"m1","Created":"2026-09-23T12:00:00Z","Subject":"Hi",
+			"From":{"Address":"no-reply@example.com"},"To":[{"Address":"jane@example.com"}],"Bcc":[{"Address":"anna@example.com"}],"Attachments":1}]}`, recorded)
 
 		messages, err := NewMailpit(server.URL).List(context.Background())
 
@@ -40,10 +40,10 @@ func TestMailpit(t *testing.T) {
 		assert.Equal(t, []InboxMessage{{
 			ID:          "m1",
 			Created:     time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC),
-			Subject:     "Oi",
-			From:        Address{Address: "no-reply@exemplo.com.br"},
-			To:          []Address{{Address: "maria@exemplo.com.br"}},
-			Bcc:         []Address{{Address: "ana@exemplo.com.br"}},
+			Subject:     "Hi",
+			From:        Address{Address: "no-reply@example.com"},
+			To:          []Address{{Address: "jane@example.com"}},
+			Bcc:         []Address{{Address: "anna@example.com"}},
 			Attachments: 1,
 		}}, messages)
 	})
@@ -80,7 +80,7 @@ func TestCallbacks(t *testing.T) {
 	t.Run("given events then list them", func(t *testing.T) {
 		recorded := &recordedRequest{}
 		server := newServer(t, http.StatusOK, `[{"receivedAt":"2026-09-23T12:00:01Z","path":"/failures","authorization":"Bearer t","status":204,
-			"body":{"id":"e1","subject":"Oi","status":"failed","errorCode":"smtp_connection_failed","cause":"falhou","occurredAt":"2026-09-23T12:00:00Z"}}]`, recorded)
+			"body":{"id":"e1","subject":"Hi","status":"failed","errorCode":"smtp_connection_failed","cause":"falhou","occurredAt":"2026-09-23T12:00:00Z"}}]`, recorded)
 
 		events, err := NewCallbacks(server.URL).List(context.Background())
 
@@ -91,7 +91,7 @@ func TestCallbacks(t *testing.T) {
 			Path:          "/failures",
 			Authorization: "Bearer t",
 			Status:        204,
-			Body:          DeliveryEvent{ID: "e1", Subject: "Oi", Status: "failed", ErrorCode: "smtp_connection_failed", Cause: "falhou", OccurredAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC)},
+			Body:          DeliveryEvent{ID: "e1", Subject: "Hi", Status: "failed", ErrorCode: "smtp_connection_failed", Cause: "falhou", OccurredAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC)},
 		}}, events)
 	})
 

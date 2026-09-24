@@ -15,7 +15,7 @@ import (
 )
 
 func email() client.Email {
-	return client.Email{ID: "k1", From: "no-reply@exemplo.com.br", To: []string{"maria@exemplo.com.br"}, Subject: "Oi", HTML: "<p>Oi</p>"}
+	return client.Email{ID: "k1", From: "no-reply@example.com", To: []string{"jane@example.com"}, Subject: "Hi", HTML: "<p>Hi</p>"}
 }
 
 func TestSender(t *testing.T) {
@@ -40,8 +40,8 @@ func TestSender(t *testing.T) {
 		assert.Equal(t, "k1", string(records[0].Key))
 		var wire map[string]any
 		require.NoError(t, json.Unmarshal(records[0].Value, &wire))
-		assert.Equal(t, []any{"maria@exemplo.com.br"}, wire["receiver"])
-		assert.Equal(t, "PHA+T2k8L3A+", wire["body"])
+		assert.Equal(t, []any{"jane@example.com"}, wire["receiver"])
+		assert.Equal(t, "PHA+SGk8L3A+", wire["body"])
 	})
 
 	t.Run("given an invalid email then fail before producing", func(t *testing.T) {

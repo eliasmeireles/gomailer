@@ -15,17 +15,17 @@ import (
 func TestClientContract(t *testing.T) {
 	t.Run("must read every field the client library writes", func(t *testing.T) {
 		email := client.Email{
-			ID:          "pedido-1",
-			From:        "no-reply@exemplo.com.br",
-			To:          []string{"maria@exemplo.com.br", "joao@exemplo.com.br"},
-			Cc:          []string{"pedro@exemplo.com.br"},
-			Bcc:         []string{"ana@exemplo.com.br"},
-			Subject:     "Olá",
-			HTML:        "<p>Olá</p>",
-			Attachments: []client.Attachment{{Name: "a.txt", ContentType: "text/plain", Content: []byte("oi")}},
+			ID:          "order-1",
+			From:        "no-reply@example.com",
+			To:          []string{"jane@example.com", "john@example.com"},
+			Cc:          []string{"peter@example.com"},
+			Bcc:         []string{"anna@example.com"},
+			Subject:     "Hello",
+			HTML:        "<p>Hello</p>",
+			Attachments: []client.Attachment{{Name: "a.txt", ContentType: "text/plain", Content: []byte("hi")}},
 			Callback: &client.Callback{
-				Success: &client.CallbackTarget{URL: "https://exemplo.com.br/ok"},
-				Failure: &client.CallbackTarget{URL: "https://exemplo.com.br/falha", Headers: map[string]string{"Authorization": "Bearer t"}},
+				Success: &client.CallbackTarget{URL: "https://example.com/ok"},
+				Failure: &client.CallbackTarget{URL: "https://example.com/failure", Headers: map[string]string{"Authorization": "Bearer t"}},
 			},
 		}
 		raw, err := json.Marshal(email)
@@ -36,22 +36,22 @@ func TestClientContract(t *testing.T) {
 
 		body, err := base64.StdEncoding.DecodeString(data.Body)
 		require.NoError(t, err)
-		assert.Equal(t, "pedido-1", data.ID)
-		assert.Equal(t, "no-reply@exemplo.com.br", data.From)
-		assert.Equal(t, Recipients{"maria@exemplo.com.br", "joao@exemplo.com.br"}, data.Receiver)
-		assert.Equal(t, Recipients{"pedro@exemplo.com.br"}, data.Cc)
-		assert.Equal(t, Recipients{"ana@exemplo.com.br"}, data.Bcc)
-		assert.Equal(t, "Olá", data.Subject)
-		assert.Equal(t, "<p>Olá</p>", string(body))
+		assert.Equal(t, "order-1", data.ID)
+		assert.Equal(t, "no-reply@example.com", data.From)
+		assert.Equal(t, Recipients{"jane@example.com", "john@example.com"}, data.Receiver)
+		assert.Equal(t, Recipients{"peter@example.com"}, data.Cc)
+		assert.Equal(t, Recipients{"anna@example.com"}, data.Bcc)
+		assert.Equal(t, "Hello", data.Subject)
+		assert.Equal(t, "<p>Hello</p>", string(body))
 		base64Decoder := decoder.TypeBase64
 		require.NotNil(t, data.Attachments)
-		assert.Equal(t, []Attachment{{Name: "a.txt", Type: "text/plain", Data: "b2k=", Decoder: &base64Decoder}}, *data.Attachments)
-		assert.Equal(t, "https://exemplo.com.br/ok", data.Callback.Success.URL)
+		assert.Equal(t, []Attachment{{Name: "a.txt", Type: "text/plain", Data: "aGk=", Decoder: &base64Decoder}}, *data.Attachments)
+		assert.Equal(t, "https://example.com/ok", data.Callback.Success.URL)
 		assert.Equal(t, map[string]string{"Authorization": "Bearer t"}, data.Callback.Failure.Headers)
 	})
 
 	t.Run("must write events the client library reads", func(t *testing.T) {
-		raw, err := json.Marshal(DeliveryEvent{ID: "1", Subject: "Oi", Status: StatusFailed, ErrorCode: CodeAPIRateLimited, Cause: "429"})
+		raw, err := json.Marshal(DeliveryEvent{ID: "1", Subject: "Hi", Status: StatusFailed, ErrorCode: CodeAPIRateLimited, Cause: "429"})
 		require.NoError(t, err)
 
 		var event client.DeliveryEvent

@@ -3,32 +3,32 @@
   <form data-action="/partials/chaos/smtp" data-target="chaos" class="chaos-block">
     <h3>SMTP (Mailpit) <span class="hint">MAILER_ENV=smtp</span></h3>
     {{if .SMTPError}}
-      <p class="empty">Mailpit indisponível: {{.SMTPError}}</p>
+      <p class="empty">Mailpit unavailable: {{.SMTPError}}</p>
     {{else}}
-      {{template "smtp-select" dict "Name" "sender" "Label" "Remetente (MAIL FROM)" "Trigger" .SMTP.Sender "Options" .EnvelopeOptions}}
-      {{template "smtp-select" dict "Name" "recipient" "Label" "Destinatário (RCPT TO)" "Trigger" .SMTP.Recipient "Options" .EnvelopeOptions}}
-      {{template "smtp-select" dict "Name" "authentication" "Label" "Autenticação" "Trigger" .SMTP.Authentication "Options" .AuthOptions}}
-      <button type="submit" class="ghost">Aplicar</button>
+      {{template "smtp-select" dict "Name" "sender" "Label" "Sender (MAIL FROM)" "Trigger" .SMTP.Sender "Options" .EnvelopeOptions}}
+      {{template "smtp-select" dict "Name" "recipient" "Label" "Recipient (RCPT TO)" "Trigger" .SMTP.Recipient "Options" .EnvelopeOptions}}
+      {{template "smtp-select" dict "Name" "authentication" "Label" "Authentication" "Trigger" .SMTP.Authentication "Options" .AuthOptions}}
+      <button type="submit" class="ghost">Apply</button>
     {{end}}
   </form>
 
   <form data-action="/partials/chaos/api" data-target="chaos" class="chaos-block">
     <h3>API mock <span class="hint">MAILER_ENV=resend-mock</span></h3>
     {{if .MockError}}
-      <p class="empty">API mock indisponível: {{.MockError}}</p>
+      <p class="empty">Mock API unavailable: {{.MockError}}</p>
     {{else}}
-      <label>Cenário
+      <label>Scenario
         <select name="preset">
           {{range .Presets}}<option value="{{.Key}}" {{if eq .Behavior.Status $.Mock.Status}}selected{{end}}>{{.Label}} → {{.ExpectedErr}}</option>{{end}}
         </select>
       </label>
-      <label>Falhar as próximas
+      <label>Fail the next
         <input type="number" name="failNext" min="0" max="20" value="{{if .Mock.FailNext}}{{.Mock.FailNext}}{{else}}2{{end}}">
       </label>
-      <button type="submit" class="ghost">Aplicar</button>
+      <button type="submit" class="ghost">Apply</button>
       <p class="meta">
-        {{if .Mock.FailNext}}<span class="badge failed">falhando {{.Mock.FailNext}}× com {{.Mock.Status}}</span>{{else}}<span class="badge sent">aceitando</span>{{end}}
-        aceitos {{.Mock.Accepted}} · rejeitados {{.Mock.Rejected}}
+        {{if .Mock.FailNext}}<span class="badge failed">failing {{.Mock.FailNext}}× with {{.Mock.Status}}</span>{{else}}<span class="badge sent">accepting</span>{{end}}
+        accepted {{.Mock.Accepted}} · rejected {{.Mock.Rejected}}
       </p>
       {{range $i, $email := .Mock.Emails}}{{if lt $i 3}}
         <div class="meta">✉ {{$email.Subject}} → {{join $email.To}}{{if $email.Cc}} · cc {{join $email.Cc}}{{end}}</div>
@@ -37,13 +37,13 @@
   </form>
 </div>
 <div class="actions">
-  <button class="ghost" data-clear="/partials/chaos/reset" data-target="chaos">Desligar todas as falhas</button>
+  <button class="ghost" data-clear="/partials/chaos/reset" data-target="chaos">Turn every failure off</button>
 </div>
 
 {{define "smtp-select"}}
 <label>{{.Label}}
   <select name="{{.Name}}">
-    <option value="0" {{if eq .Trigger.Probability 0}}selected{{end}}>desligado</option>
+    <option value="0" {{if eq .Trigger.Probability 0}}selected{{end}}>off</option>
     {{range .Options}}<option value="{{.Code}}" {{if and (gt $.Trigger.Probability 0) (eq .Code $.Trigger.ErrorCode)}}selected{{end}}>{{.Label}}</option>{{end}}
   </select>
 </label>

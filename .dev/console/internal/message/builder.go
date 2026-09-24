@@ -8,7 +8,7 @@ import (
 )
 
 // invalidBody is sent when Form.InvalidBody is set, to exercise the mailer failure path.
-const invalidBody = "isto-nao-e-base64!!!"
+const invalidBody = "not-valid-base64!!!"
 
 var addressSeparator = regexp.MustCompile(`[,;\n]+`)
 
@@ -50,17 +50,17 @@ func SplitAddresses(list string) []string {
 func validate(form Form) error {
 	switch {
 	case strings.TrimSpace(form.From) == "":
-		return errors.New("informe o remetente (from)")
+		return errors.New("sender (from) is required")
 	case len(SplitAddresses(form.To)) == 0:
-		return errors.New("informe ao menos um destinatário (to)")
+		return errors.New("at least one recipient (to) is required")
 	case strings.TrimSpace(form.Subject) == "":
-		return errors.New("informe o assunto")
+		return errors.New("subject is required")
 	case !form.InvalidBody && strings.TrimSpace(form.HTML) == "":
-		return errors.New("informe o corpo HTML")
+		return errors.New("HTML body is required")
 	case form.SuccessCallbackEnabled && strings.TrimSpace(form.SuccessCallbackURL) == "":
-		return errors.New("informe a URL do callback de sucesso")
+		return errors.New("success callback URL is required")
 	case form.FailureCallbackEnabled && strings.TrimSpace(form.FailureCallbackURL) == "":
-		return errors.New("informe a URL do callback de falha")
+		return errors.New("failure callback URL is required")
 	}
 	return nil
 }

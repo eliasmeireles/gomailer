@@ -20,7 +20,7 @@ func TestSMTPSenderSend(t *testing.T) {
 		data := newValidEmail()
 		data.Subject = ""
 
-		err := NewSMTPSender(config.SMTPConfig{Host: "smtp.exemplo.com.br", Port: 465}).Send(data)
+		err := NewSMTPSender(config.SMTPConfig{Host: "smtp.example.com", Port: 465}).Send(data)
 
 		require.EqualError(t, err, "subject cannot be empty")
 	})

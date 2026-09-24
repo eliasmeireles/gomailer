@@ -116,14 +116,14 @@ func TestMailpitChaos(t *testing.T) {
 func TestMockAPI(t *testing.T) {
 	t.Run("given a state then read it", func(t *testing.T) {
 		server := newCapturingServer(t, http.StatusOK, `{"failNext":2,"status":429,"name":"rate_limit_exceeded","message":"x","accepted":1,"rejected":3,
-			"emails":[{"id":"e1","subject":"Oi","to":["maria@exemplo.com.br"]}]}`, &capture{})
+			"emails":[{"id":"e1","subject":"Hi","to":["jane@example.com"]}]}`, &capture{})
 
 		state, err := NewMockAPI(server.URL).State(context.Background())
 
 		require.NoError(t, err)
 		assert.Equal(t, 2, state.FailNext)
 		assert.Equal(t, 3, state.Rejected)
-		assert.Equal(t, []string{"maria@exemplo.com.br"}, state.Emails[0].To)
+		assert.Equal(t, []string{"jane@example.com"}, state.Emails[0].To)
 	})
 
 	t.Run("given a behavior then put it", func(t *testing.T) {

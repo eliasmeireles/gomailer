@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func fixedID() string { return "id-fixo" }
+func fixedID() string { return "fixed-id" }
 
 func newTestForm() Form {
 	return Form{
-		From:    "no-reply@exemplo.com.br",
-		To:      "maria@exemplo.com.br, joao@exemplo.com.br",
-		Subject: "Assunto",
-		HTML:    "<p>Olá</p>",
+		From:    "no-reply@example.com",
+		To:      "jane@example.com, john@example.com",
+		Subject: "Subject",
+		HTML:    "<p>Hello</p>",
 		Format:  FormatArray,
 	}
 }
@@ -27,46 +27,46 @@ func TestBuild(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, Email{
-			ID:       "id-fixo",
-			From:     "no-reply@exemplo.com.br",
-			Receiver: []string{"maria@exemplo.com.br", "joao@exemplo.com.br"},
-			Subject:  "Assunto",
-			Body:     base64.StdEncoding.EncodeToString([]byte("<p>Olá</p>")),
+			ID:       "fixed-id",
+			From:     "no-reply@example.com",
+			Receiver: []string{"jane@example.com", "john@example.com"},
+			Subject:  "Subject",
+			Body:     base64.StdEncoding.EncodeToString([]byte("<p>Hello</p>")),
 		}, email)
 	})
 
 	t.Run("given an id then keep it", func(t *testing.T) {
 		form := newTestForm()
-		form.ID = " pedido-1 "
+		form.ID = " order-1 "
 
 		email, err := Build(form, fixedID)
 
 		require.NoError(t, err)
-		assert.Equal(t, "pedido-1", email.ID)
+		assert.Equal(t, "order-1", email.ID)
 	})
 
 	t.Run("given the string format then join recipients with comma", func(t *testing.T) {
 		form := newTestForm()
 		form.Format = FormatString
-		form.Cc = "pedro@exemplo.com.br;ana@exemplo.com.br"
+		form.Cc = "peter@example.com;anna@example.com"
 
 		email, err := Build(form, fixedID)
 
 		require.NoError(t, err)
-		assert.Equal(t, "maria@exemplo.com.br, joao@exemplo.com.br", email.Receiver)
-		assert.Equal(t, "pedro@exemplo.com.br, ana@exemplo.com.br", email.Cc)
+		assert.Equal(t, "jane@example.com, john@example.com", email.Receiver)
+		assert.Equal(t, "peter@example.com, anna@example.com", email.Cc)
 		assert.Nil(t, email.Bcc)
 	})
 
 	t.Run("given files then encode them as base64 attachments", func(t *testing.T) {
 		form := newTestForm()
-		form.Files = []File{{Name: "a.txt", Type: "text/plain", Content: []byte("oi")}, {Name: "b.bin", Content: []byte{1}}}
+		form.Files = []File{{Name: "a.txt", Type: "text/plain", Content: []byte("hi")}, {Name: "b.bin", Content: []byte{1}}}
 
 		email, err := Build(form, fixedID)
 
 		require.NoError(t, err)
 		assert.Equal(t, []Attachment{
-			{Name: "a.txt", Type: "text/plain", Data: "b2k=", Decoder: "base64"},
+			{Name: "a.txt", Type: "text/plain", Data: "aGk=", Decoder: "base64"},
 			{Name: "b.bin", Type: "application/octet-stream", Data: "AQ==", Decoder: "base64"},
 		}, email.Attachments)
 	})
@@ -141,12 +141,12 @@ func TestBuildValidation(t *testing.T) {
 		mutate   func(*Form)
 		expected string
 	}{
-		"given no from then reject":                      {func(f *Form) { f.From = " " }, "informe o remetente (from)"},
-		"given no recipient then reject":                 {func(f *Form) { f.To = " , ;" }, "informe ao menos um destinatário (to)"},
-		"given no subject then reject":                   {func(f *Form) { f.Subject = "" }, "informe o assunto"},
-		"given no html then reject":                      {func(f *Form) { f.HTML = "" }, "informe o corpo HTML"},
-		"given success callback without url then reject": {func(f *Form) { f.SuccessCallbackEnabled = true }, "informe a URL do callback de sucesso"},
-		"given failure callback without url then reject": {func(f *Form) { f.FailureCallbackEnabled = true }, "informe a URL do callback de falha"},
+		"given no from then reject":                      {func(f *Form) { f.From = " " }, "sender (from) is required"},
+		"given no recipient then reject":                 {func(f *Form) { f.To = " , ;" }, "at least one recipient (to) is required"},
+		"given no subject then reject":                   {func(f *Form) { f.Subject = "" }, "subject is required"},
+		"given no html then reject":                      {func(f *Form) { f.HTML = "" }, "HTML body is required"},
+		"given success callback without url then reject": {func(f *Form) { f.SuccessCallbackEnabled = true }, "success callback URL is required"},
+		"given failure callback without url then reject": {func(f *Form) { f.FailureCallbackEnabled = true }, "failure callback URL is required"},
 	}
 
 	for name, tc := range cases {
@@ -164,8 +164,8 @@ func TestBuildValidation(t *testing.T) {
 func TestSplitAddresses(t *testing.T) {
 	t.Run("given commas, semicolons and new lines then split and trim", func(t *testing.T) {
 		assert.Equal(t,
-			[]string{"a@exemplo.com.br", "b@exemplo.com.br", "c@exemplo.com.br"},
-			SplitAddresses(" a@exemplo.com.br ;b@exemplo.com.br\n\n c@exemplo.com.br, "),
+			[]string{"a@example.com", "b@example.com", "c@example.com"},
+			SplitAddresses(" a@example.com ;b@example.com\n\n c@example.com, "),
 		)
 	})
 

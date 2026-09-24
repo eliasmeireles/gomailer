@@ -39,9 +39,9 @@ func TestResendSenderSend(t *testing.T) {
 		captured := &capturedRequest{}
 		server := newResendServer(t, http.StatusOK, `{"id":"email-id"}`, captured)
 		data := newValidEmail()
-		data.Receiver = model.Recipients{testRecipient, "joao@exemplo.com.br"}
-		data.Cc = model.Recipients{"cc@exemplo.com.br"}
-		data.Bcc = model.Recipients{"bcc1@exemplo.com.br", "bcc2@exemplo.com.br"}
+		data.Receiver = model.Recipients{testRecipient, "john@example.com"}
+		data.Cc = model.Recipients{"cc@example.com"}
+		data.Bcc = model.Recipients{"bcc1@example.com", "bcc2@example.com"}
 		data.Attachments = &[]model.Attachment{{Name: testFileName, Type: testFileType, Data: helloBase64}}
 
 		err := NewResendSender(config.ResendConfig{APIKey: "re_test", BaseURL: server.URL}, server.Client()).Send(data)
@@ -52,9 +52,9 @@ func TestResendSenderSend(t *testing.T) {
 		assert.Equal(t, "Bearer re_test", captured.auth)
 		assert.Equal(t, resendEmailRequest{
 			From:    testSender,
-			To:      []string{testRecipient, "joao@exemplo.com.br"},
-			Cc:      []string{"cc@exemplo.com.br"},
-			Bcc:     []string{"bcc1@exemplo.com.br", "bcc2@exemplo.com.br"},
+			To:      []string{testRecipient, "john@example.com"},
+			Cc:      []string{"cc@example.com"},
+			Bcc:     []string{"bcc1@example.com", "bcc2@example.com"},
 			Subject: testSubject,
 			HTML:    testBody,
 			Attachments: []resendAttachment{{
@@ -67,11 +67,11 @@ func TestResendSenderSend(t *testing.T) {
 
 	t.Run("given a Resend error response then return its name and message", func(t *testing.T) {
 		server := newResendServer(t, http.StatusForbidden,
-			`{"statusCode":403,"name":"validation_error","message":"The exemplo.com.br domain is not verified."}`, &capturedRequest{})
+			`{"statusCode":403,"name":"validation_error","message":"The example.com domain is not verified."}`, &capturedRequest{})
 
 		err := NewResendSender(config.ResendConfig{APIKey: "re_test", BaseURL: server.URL}, server.Client()).Send(newValidEmail())
 
-		require.EqualError(t, err, "resend API returned status 403: validation_error: The exemplo.com.br domain is not verified.")
+		require.EqualError(t, err, "resend API returned status 403: validation_error: The example.com domain is not verified.")
 		assert.Equal(t, model.CodeAPISenderNotAllowed, mailer.CodeOf(err))
 	})
 
@@ -114,7 +114,7 @@ func TestClassifyResendError(t *testing.T) {
 		"given an invalid api key then authorization denied":     {403, `{"name":"invalid_api_key","message":"API key is invalid"}`, model.CodeAPIAuthorizationDenied},
 		"given a missing api key then authorization denied":      {401, `{"name":"missing_api_key","message":"Missing API key"}`, model.CodeAPIAuthorizationDenied},
 		"given a 401 validation error then authorization denied": {401, `{"statusCode":401,"name":"validation_error","message":"API key is invalid"}`, model.CodeAPIAuthorizationDenied},
-		"given an unverified domain then sender not allowed":     {403, `{"name":"validation_error","message":"The exemplo.com.br domain is not verified."}`, model.CodeAPISenderNotAllowed},
+		"given an unverified domain then sender not allowed":     {403, `{"name":"validation_error","message":"The example.com domain is not verified."}`, model.CodeAPISenderNotAllowed},
 		"given an invalid to field then invalid receiver":        {422, `{"name":"validation_error","message":"Invalid ` + "`to`" + ` field."}`, model.CodeAPIInvalidReceiver},
 		"given an invalid from field then sender not allowed":    {422, `{"name":"validation_error","message":"Invalid ` + "`from`" + ` field."}`, model.CodeAPISenderNotAllowed},
 		"given another validation error then invalid request":    {422, `{"name":"validation_error","message":"Subject too long"}`, model.CodeAPIInvalidRequest},

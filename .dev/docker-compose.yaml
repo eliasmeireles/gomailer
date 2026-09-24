@@ -148,8 +148,8 @@ services:
         condition: service_healthy
     environment:
       # Sender/recipient of the test message, like a real producer would put in the message body.
-      MAIL_FROM: ${MAIL_FROM:-no-reply@exemplo.com.br}
-      MAIL_TO: ${MAIL_TO:-maria@exemplo.com.br}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@example.com}
+      MAIL_TO: ${MAIL_TO:-jane@example.com}
       MAIL_CC: ${MAIL_CC:-}
       MAIL_BCC: ${MAIL_BCC:-}
       RABBITMQ_API_URL: http://rabbitmq:15672

@@ -12,12 +12,12 @@ import (
 	"github.com/eliasmeireles/gomailer/internal/core/model"
 )
 
-const testHTML = "<h1>Olá</h1>"
+const testHTML = "<h1>Hello</h1>"
 
 var (
 	testNow           = time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC)
-	testSuccessTarget = &model.CallbackTarget{URL: "https://exemplo.com.br/sent", Headers: map[string]string{"Authorization": "Bearer ok"}}
-	testFailureTarget = &model.CallbackTarget{URL: "https://exemplo.com.br/failed", Headers: map[string]string{"Authorization": "Bearer fail"}}
+	testSuccessTarget = &model.CallbackTarget{URL: "https://example.com/sent", Headers: map[string]string{"Authorization": "Bearer ok"}}
+	testFailureTarget = &model.CallbackTarget{URL: "https://example.com/failed", Headers: map[string]string{"Authorization": "Bearer fail"}}
 )
 
 type mockSender struct {
@@ -49,10 +49,10 @@ func (m *mockNotifier) Notify(target model.CallbackTarget, event model.DeliveryE
 
 func newTestEmail(callback *model.Callback) model.SendEmailData {
 	return model.SendEmailData{
-		ID:       "pedido-123",
-		From:     "no-reply@exemplo.com.br",
-		Receiver: model.Recipients{"maria@exemplo.com.br"},
-		Subject:  "Assunto de teste",
+		ID:       "order-123",
+		From:     "no-reply@example.com",
+		Receiver: model.Recipients{"jane@example.com"},
+		Subject:  "Test subject",
 		Body:     base64.StdEncoding.EncodeToString([]byte(testHTML)),
 		Callback: callback,
 	}
@@ -79,7 +79,7 @@ func TestServiceDeliverSuccess(t *testing.T) {
 	t.Run("given a success then return the sent event", func(t *testing.T) {
 		outcome := newTestService(&mockSender{}, &mockNotifier{}).DeliverOnce(newTestEmail(nil))
 
-		assert.Equal(t, model.DeliveryEvent{ID: "pedido-123", Subject: "Assunto de teste", Status: model.StatusSent, OccurredAt: testNow}, outcome.Event)
+		assert.Equal(t, model.DeliveryEvent{ID: "order-123", Subject: "Test subject", Status: model.StatusSent, OccurredAt: testNow}, outcome.Event)
 	})
 
 	t.Run("given a success callback then notify it with the sent event", func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestServiceDeliverSuccess(t *testing.T) {
 
 		assert.Equal(t, []notification{{
 			target: *testSuccessTarget,
-			event:  model.DeliveryEvent{ID: "pedido-123", Subject: "Assunto de teste", Status: model.StatusSent, OccurredAt: testNow},
+			event:  model.DeliveryEvent{ID: "order-123", Subject: "Test subject", Status: model.StatusSent, OccurredAt: testNow},
 		}}, notifier.notifications)
 	})
 
@@ -153,11 +153,11 @@ func TestServiceDeliverFailure(t *testing.T) {
 		assert.Equal(t, ActionDone, outcome.Action)
 		assert.False(t, outcome.Sent())
 		expected := model.DeliveryEvent{
-			ID:         "pedido-123",
-			Subject:    "Assunto de teste",
+			ID:         "order-123",
+			Subject:    "Test subject",
 			Status:     model.StatusFailed,
 			ErrorCode:  model.CodeAPISenderNotAllowed,
-			Cause:      "failed to send email to maria@exemplo.com.br: domain not verified",
+			Cause:      "failed to send email to jane@example.com: domain not verified",
 			OccurredAt: testNow,
 		}
 		assert.Equal(t, expected, outcome.Event)

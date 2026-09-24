@@ -8,10 +8,10 @@ import (
 )
 
 func setSMTPEnv(t *testing.T, port string) {
-	t.Setenv(envSMTPServer, "smtp.exemplo.com.br")
+	t.Setenv(envSMTPServer, "smtp.example.com")
 	t.Setenv(envSMTPServerPort, port)
-	t.Setenv(envSMTPServerUser, "usuario")
-	t.Setenv(envSMTPServerPass, "senha")
+	t.Setenv(envSMTPServerUser, "user")
+	t.Setenv(envSMTPServerPass, "password")
 }
 
 func TestNewSMTPConfig(t *testing.T) {
@@ -21,7 +21,7 @@ func TestNewSMTPConfig(t *testing.T) {
 		cfg, err := NewSMTPConfig()
 
 		require.NoError(t, err)
-		assert.Equal(t, SMTPConfig{Host: "smtp.exemplo.com.br", Port: 465, Username: "usuario", Password: "senha"}, cfg)
+		assert.Equal(t, SMTPConfig{Host: "smtp.example.com", Port: 465, Username: "user", Password: "password"}, cfg)
 	})
 
 	t.Run("given a missing env var then return error", func(t *testing.T) {

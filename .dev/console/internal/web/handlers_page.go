@@ -24,5 +24,5 @@ func defaultFrom(mailerEnv string) string {
 	if strings.Contains(mailerEnv, "resend") {
 		return "onboarding@resend.dev"
 	}
-	return "no-reply@exemplo.com.br"
+	return "no-reply@example.com"
 }

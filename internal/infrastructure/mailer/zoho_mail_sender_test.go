@@ -64,9 +64,9 @@ func TestZohoMailSenderSend(t *testing.T) {
 		fake := &fakeZohoMail{sendStatus: http.StatusOK, sendResponse: `{"status":{"code":200,"description":"success"}}`}
 		sender, _ := newZohoMailTestSender(t, fake)
 		data := newValidEmail()
-		data.Receiver = model.Recipients{testRecipient, "joao@exemplo.com.br"}
-		data.Cc = model.Recipients{"cc1@exemplo.com.br", "cc2@exemplo.com.br"}
-		data.Bcc = model.Recipients{"bcc@exemplo.com.br"}
+		data.Receiver = model.Recipients{testRecipient, "john@example.com"}
+		data.Cc = model.Recipients{"cc1@example.com", "cc2@example.com"}
+		data.Bcc = model.Recipients{"bcc@example.com"}
 
 		err := sender.Send(data)
 
@@ -79,9 +79,9 @@ func TestZohoMailSenderSend(t *testing.T) {
 		require.NoError(t, json.Unmarshal(fake.requests[0].body, &sent))
 		assert.Equal(t, zohoMailRequest{
 			FromAddress: testSender,
-			ToAddress:   testRecipient + ",joao@exemplo.com.br",
-			CcAddress:   "cc1@exemplo.com.br,cc2@exemplo.com.br",
-			BccAddress:  "bcc@exemplo.com.br",
+			ToAddress:   testRecipient + ",john@example.com",
+			CcAddress:   "cc1@example.com,cc2@example.com",
+			BccAddress:  "bcc@example.com",
 			Subject:     testSubject,
 			Content:     testBody,
 			MailFormat:  "html",
@@ -94,7 +94,7 @@ func TestZohoMailSenderSend(t *testing.T) {
 			sendResponse: `{"status":{"code":200,"description":"success"}}`,
 			uploadStatus: http.StatusOK,
 			uploadResults: map[string]string{
-				testFileName: `{"status":{"code":200},"data":{"storeName":"5386","attachmentName":"arquivo.txt","attachmentPath":"/Mail/abc-arquivo.txt"}}`,
+				testFileName: `{"status":{"code":200},"data":{"storeName":"5386","attachmentName":"file.txt","attachmentPath":"/Mail/abc-file.txt"}}`,
 			},
 		}
 		sender, _ := newZohoMailTestSender(t, fake)
@@ -106,12 +106,12 @@ func TestZohoMailSenderSend(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, fake.requests, 2)
 		assert.Equal(t, "/api/accounts/123456/messages/attachments", fake.requests[0].path)
-		assert.Equal(t, "fileName=arquivo.txt", fake.requests[0].query)
+		assert.Equal(t, "fileName=file.txt", fake.requests[0].query)
 		assert.Equal(t, "application/octet-stream", fake.requests[0].contentType)
 		assert.Equal(t, []byte("Hello World"), fake.requests[0].body)
 		var sent zohoMailRequest
 		require.NoError(t, json.Unmarshal(fake.requests[1].body, &sent))
-		assert.Equal(t, []zohoAttachmentRef{{StoreName: "5386", AttachmentPath: "/Mail/abc-arquivo.txt", AttachmentName: "arquivo.txt"}}, sent.Attachments)
+		assert.Equal(t, []zohoAttachmentRef{{StoreName: "5386", AttachmentPath: "/Mail/abc-file.txt", AttachmentName: "file.txt"}}, sent.Attachments)
 	})
 
 	t.Run("given a failed upload then return error without sending", func(t *testing.T) {
@@ -123,7 +123,7 @@ func TestZohoMailSenderSend(t *testing.T) {
 		err := sender.Send(data)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), `failed to upload attachment "arquivo.txt"`)
+		assert.Contains(t, err.Error(), `failed to upload attachment "file.txt"`)
 		assert.Len(t, fake.requests, 1)
 	})
 

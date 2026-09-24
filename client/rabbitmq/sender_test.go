@@ -36,7 +36,7 @@ func TestSender(t *testing.T) {
 	t.Run("given an unreachable broker then send and health check return errors", func(t *testing.T) {
 		sender, err := New(Config{URL: "amqp://guest:guest@127.0.0.1:1/", Timeout: 300 * time.Millisecond})
 		require.NoError(t, err)
-		email := client.Email{From: "a@exemplo.com.br", To: []string{"b@exemplo.com.br"}, Subject: "s", HTML: "h"}
+		email := client.Email{From: "a@example.com", To: []string{"b@example.com"}, Subject: "s", HTML: "h"}
 
 		require.ErrorContains(t, sender.Send(context.Background(), email), "connect to rabbitmq")
 		require.ErrorContains(t, sender.HealthCheck(context.Background()), "connect to rabbitmq")

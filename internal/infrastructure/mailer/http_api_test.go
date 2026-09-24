@@ -28,7 +28,7 @@ func newStaticServer(t *testing.T, status int, body string) *httptest.Server {
 
 func TestNewJSONRequest(t *testing.T) {
 	t.Run("given a payload and headers then build a json request", func(t *testing.T) {
-		req, err := newJSONRequest(http.MethodPost, "https://exemplo.com.br/x", map[string]string{"a": "b"}, map[string]string{"X-Key": "v"})
+		req, err := newJSONRequest(http.MethodPost, "https://example.com/x", map[string]string{"a": "b"}, map[string]string{"X-Key": "v"})
 
 		require.NoError(t, err)
 		body, err := io.ReadAll(req.Body)
@@ -40,7 +40,7 @@ func TestNewJSONRequest(t *testing.T) {
 	})
 
 	t.Run("given an unencodable payload then return error", func(t *testing.T) {
-		_, err := newJSONRequest(http.MethodPost, "https://exemplo.com.br/x", make(chan int), nil)
+		_, err := newJSONRequest(http.MethodPost, "https://example.com/x", make(chan int), nil)
 
 		require.Error(t, err)
 	})

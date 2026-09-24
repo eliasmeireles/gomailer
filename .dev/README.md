@@ -29,10 +29,10 @@ make dev-down               # stop everything and drop volumes
 
 A Go web app (`console/`) that acts as an external producer: it builds messages in the mailer contract and publishes them straight to the queue over AMQP.
 
-- **Enviar via**: RabbitMQ (publishes to the queue), Kafka (produces to the topic) or HTTP (calls `POST /v1/emails` and shows the synchronous response: status, `errorCode`, `cause`).
+- **Send via**: RabbitMQ (publishes to the queue), Kafka (produces to the topic) or HTTP (calls `POST /v1/emails` and shows the synchronous response: status, `errorCode`, `cause`).
 - Form with `id`, `from`, `to`/`cc`/`bcc` (sent as array or comma-separated string), subject, HTML body with live preview, attachments, success/failure callbacks and a "simulate failure" switch (non-base64 body).
 - Header pills with the selected `MAILER_ENV`, mailer readiness and, for RabbitMQ and Kafka, pending messages, consumers, messages waiting to be retried and in the DLQ.
-- **Simular falhas**: Mailpit chaos per SMTP step (4xx temporary or 5xx permanent) and the mock API failing the next N requests with a Resend error (429, 503, 422, 403, 401).
+- **Simulate failures**: Mailpit chaos per SMTP step (4xx temporary or 5xx permanent) and the mock API failing the next N requests with a Resend error (429, 503, 422, 403, 401).
 - Panels for the dead letters of RabbitMQ and Kafka (source, error code, attempts, cause; purge), the received callbacks (sent/failed with errorCode and cause) and the Mailpit inbox (to/cc/bcc, attachments), refreshed every 3s.
 
 Its defaults follow `MAILER_ENV` (e.g. `from` is `onboarding@resend.dev` for Resend). Run its tests with `cd .dev/console && go test ./...`.
@@ -43,21 +43,21 @@ The mailer runs with `MAILER_SOURCES=rabbitmq,http,kafka`. Call the API directly
 
 ```bash
 curl -X POST http://localhost:8090/v1/emails -H "Authorization: Bearer dev-token" -H "Content-Type: application/json" \
-  -d '{"from":"no-reply@exemplo.com.br","receiver":"maria@exemplo.com.br","subject":"Oi","body":"PGgxPk9pPC9oMT4="}'
+  -d '{"from":"no-reply@example.com","receiver":"jane@example.com","subject":"Hi","body":"PGgxPkhpPC9oMT4="}'
 ```
 
 Override the sources or the token with `MAILER_SOURCES=http make dev-up` and `HTTP_API_KEY=<token>`.
 
 ## Test Scenarios
 
-The mailer runs with short retries in the stack (`MAILER_MAX_ATTEMPTS=3`, waits of 5s and 10s; override with the same variables). Use **Simular falhas** in the console, then send an email through any channel (RabbitMQ, Kafka or HTTP):
+The mailer runs with short retries in the stack (`MAILER_MAX_ATTEMPTS=3`, waits of 5s and 10s; override with the same variables). Use **Simulate failures** in the console, then send an email through any channel (RabbitMQ, Kafka or HTTP):
 
 | Scenario | Setup | Expected |
 |---|---|---|
 | Temporary failure that recovers | `smtp`: recipient `451`, send, set it back to off within 5s · or `resend-mock`: `503`, fail next 2 | Retried, then delivered; success callback |
 | Temporary failure that persists | `smtp`: recipient `451` · or `resend-mock`: `429`, fail next 5 | 3 attempts; failure callback with `smtp_temporary_failure` / `api_rate_limited`, or DLQ without callback |
 | Permanent failure | `smtp`: recipient `550` · or `resend-mock`: `422` | No retry; failure callback with `smtp_receiver_rejected` / `api_invalid_receiver`, or DLQ |
-| Invalid message | **Simular falha (corpo não base64)** | `message_invalid_body`, no retry |
+| Invalid message | **Simulate failure (non-base64 body)** | `message_invalid_body`, no retry |
 | Synchronous API | Send via HTTP with any failure | Immediate response with the mapped status (e.g. 503), no retry |
 | Invalid JSON on Kafka | `echo '{nope' \| docker compose -f .dev/docker-compose.yaml exec -T kafka /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic mailer-service` | Kafka DLQ with `message_invalid_json` |
 
@@ -85,16 +85,16 @@ MAILER_ENV=resend make dev-up
 The sender and recipient are part of each message, as a real producer sends them. Set them per publish:
 
 ```bash
-make dev-publish FROM=onboarding@resend.dev TO=maria@exemplo.com.br
-make dev-publish CC=joao@exemplo.com.br BCC=ana@exemplo.com.br
+make dev-publish FROM=onboarding@resend.dev TO=jane@example.com
+make dev-publish CC=john@example.com BCC=anna@example.com
 make dev-publish MESSAGE="success invalid-body"
 ```
 
 | Variable | Default | Description |
 |---|---|---|
 | `MESSAGE` | `success` | One or more templates from `messages/` (space-separated) |
-| `FROM` | `no-reply@exemplo.com.br` | Message `from` |
-| `TO` | `maria@exemplo.com.br` | Message `receiver` (comma-separated for many) |
+| `FROM` | `no-reply@example.com` | Message `from` |
+| `TO` | `jane@example.com` | Message `receiver` (comma-separated for many) |
 | `CC` / `BCC` | empty | Message `cc` / `bcc` (comma-separated, optional) |
 | `MAILER_ENV` | `smtp` | Must match the one used in `dev-up` |
 

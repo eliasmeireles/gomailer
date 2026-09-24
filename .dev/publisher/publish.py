@@ -24,8 +24,8 @@ def render(name):
     with open(f"/messages/{name}.json", encoding="utf-8") as template:
         values = {
             "MAIL_ID": str(uuid.uuid4()),
-            "MAIL_FROM": os.getenv("MAIL_FROM", "no-reply@exemplo.com.br"),
-            "MAIL_TO": os.getenv("MAIL_TO", "maria@exemplo.com.br"),
+            "MAIL_FROM": os.getenv("MAIL_FROM", "no-reply@example.com"),
+            "MAIL_TO": os.getenv("MAIL_TO", "jane@example.com"),
             "MAIL_CC": os.getenv("MAIL_CC", ""),
             "MAIL_BCC": os.getenv("MAIL_BCC", ""),
             "CALLBACK_SUCCESS_URL": os.getenv("CALLBACK_SUCCESS_URL", "http://callback:9099/success"),
