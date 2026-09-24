@@ -101,7 +101,7 @@ services:
     env_file:
       - env/${MAILER_ENV:-smtp}.env
     environment:
-      MAILER_SOURCES: ${MAILER_SOURCES:-rabbitmq,http,kafka}
+      MAILER_SOURCES: ${MAILER_SOURCES:-rabbitmq,kafka}
       KAFKA_BROKERS: kafka:9092
       KAFKA_CREATE_TOPICS: "true"
       KAFKA_TOPIC_PARTITIONS: 1
