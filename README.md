@@ -7,7 +7,7 @@ A lightweight Go email service that receives requests from RabbitMQ, Kafka or an
 
 ## Features
 
-- **Multiple sources**: RabbitMQ queue, Kafka topic and a synchronous HTTP API (`POST /v1/emails`), enabled together or alone
+- **Multiple sources**: RabbitMQ queue and Kafka topic, plus a synchronous HTTP API (`POST /v1/emails`) enabled by default (`HTTP_API_DISABLED=true` turns it off)
 - **Retries and dead-letter queue**: temporary failures are retried with exponential backoff; final unhandled failures go to a DLQ
 - **Pluggable transports**: SMTP (implicit TLS) or HTTP API clients selected by configuration
 - **API clients**: `resend`, `zoho` (Zoho Mail API, OAuth 2.0) and `zeptomail`, with a registry for adding new ones
@@ -137,7 +137,7 @@ API codes are normalized across providers from their documented errors (Resend e
 
 ## HTTP API
 
-Enable it with `MAILER_SOURCES=http` (or `rabbitmq,http`). The request body is the same [queue message](#queue-message); the email is delivered synchronously and the response body is the delivery event.
+The HTTP source runs by default next to the queue sources in `MAILER_SOURCES`; `MAILER_SOURCES=http` runs it alone and `HTTP_API_DISABLED=true` turns it off. The request body is the same [queue message](#queue-message); the email is delivered synchronously and the response body is the delivery event.
 
 ```bash
 curl -X POST http://localhost:8081/v1/emails \
@@ -161,7 +161,7 @@ curl -X POST http://localhost:8081/v1/emails \
 | `503` | Provider unreachable or unavailable (`*_connection_failed`, `api_provider_unavailable`) |
 | `502` | Credentials rejected or unexpected provider response |
 
-Requests without `id` get a generated UUID, returned in the response. Callbacks in the body are honored as with the queue. The endpoint always requires a Bearer token: the service refuses to start the HTTP source without `HTTP_API_KEYS`. Expose it only to trusted clients (it sends email from your domain).
+Requests without `id` get a generated UUID, returned in the response. Callbacks in the body are honored as with the queue. The endpoint always requires a Bearer token: while the HTTP source is enabled, the service refuses to start without `HTTP_API_KEYS`. Expose it only to trusted clients (it sends email from your domain).
 
 ## Go Client
 
@@ -178,9 +178,10 @@ err := sender.Send(ctx, client.Email{From: "no-reply@example.com", To: []string{
 
 | Variable | Default | Description |
 |---|---|---|
-| `MAILER_SOURCES` | `rabbitmq` | Comma-separated sources to enable: `rabbitmq`, `kafka`, `http` |
+| `MAILER_SOURCES` | `rabbitmq` | Comma-separated sources to enable: `rabbitmq`, `kafka`, `http`. The HTTP source is added automatically; list `http` alone to run only it |
+| `HTTP_API_DISABLED` | `false` | `true` turns the HTTP source off (no `POST /v1/emails` endpoint, no `HTTP_API_KEYS` needed) |
 | `HTTP_API_PORT` | `8081` | HTTP source port |
-| `HTTP_API_KEYS` | — | Required for `http`: comma-separated accepted Bearer tokens |
+| `HTTP_API_KEYS` | — | Required unless `HTTP_API_DISABLED=true`: comma-separated accepted Bearer tokens |
 | `HTTP_API_MAX_BODY_BYTES` | `26214400` | Max request body (25 MiB) |
 
 ### Kafka (`MAILER_SOURCES` includes `kafka`)
@@ -302,7 +303,7 @@ Public multi-arch images (`linux/amd64`, `linux/arm64`) are published to [`ghcr.
 docker pull ghcr.io/eliasmeireles/gomailer:1.0.0
 ```
 
-The container exposes `8080` (health: `/healthz`, `/readyz`) and, when the HTTP source is enabled, `8081` (`POST /v1/emails`). All configuration comes from the [environment variables](#configuration).
+The container exposes `8080` (health: `/healthz`, `/readyz`) and `8081` (`POST /v1/emails`, unless `HTTP_API_DISABLED=true`). All configuration comes from the [environment variables](#configuration).
 
 ### HTTP source + Resend API (no broker needed)
 
@@ -321,11 +322,12 @@ curl -X POST localhost:8081/v1/emails \
 
 ### RabbitMQ source + SMTP
 
-Keep credentials out of your shell history with an env file:
+Keep credentials out of your shell history with an env file. This example runs a queue worker only; drop `HTTP_API_DISABLED`, set `HTTP_API_KEYS` and publish `8081` to also accept HTTP requests:
 
 ```bash
 cat > gomailer.env <<'ENV'
 MAILER_SOURCES=rabbitmq
+HTTP_API_DISABLED=true
 MAILER_TRANSPORT=smtp
 SMTP_SERVER=smtp.example.com
 SMTP_SERVER_PORT=465

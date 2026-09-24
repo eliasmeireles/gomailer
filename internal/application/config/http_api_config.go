@@ -29,7 +29,7 @@ type HTTPAPIConfig struct {
 func NewHTTPAPIConfig() (HTTPAPIConfig, error) {
 	keysValue, err := requireEnv(envHTTPAPIKeys)
 	if err != nil {
-		return HTTPAPIConfig{}, fmt.Errorf("the http source requires API keys: %w", err)
+		return HTTPAPIConfig{}, fmt.Errorf("the http source (enabled by default) requires API keys, or set %s=true to disable it: %w", envHTTPAPIDisabled, err)
 	}
 
 	var keys []string

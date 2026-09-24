@@ -19,16 +19,40 @@ const (
 
 	envMailerSources     = "MAILER_SOURCES"
 	defaultMailerSources = "rabbitmq"
+	envHTTPAPIDisabled   = "HTTP_API_DISABLED"
 )
 
 var knownSources = []SourceName{SourceRabbitMQ, SourceHTTP, SourceKafka}
 
-// Sources reads MAILER_SOURCES, a comma-separated list of enabled sources (default "rabbitmq").
+// Sources returns the enabled sources: those listed in MAILER_SOURCES (comma-separated, default
+// "rabbitmq") plus the HTTP source, which is always enabled unless HTTP_API_DISABLED is true.
+// Listing "http" alone runs the HTTP source only.
 //
 // Example:
 //
-//	MAILER_SOURCES=rabbitmq,http
+//	MAILER_SOURCES=rabbitmq,kafka       # rabbitmq, kafka and http
+//	MAILER_SOURCES=rabbitmq HTTP_API_DISABLED=true  # rabbitmq only
 func Sources() ([]SourceName, error) {
+	sources, err := listedSources()
+	if err != nil {
+		return nil, err
+	}
+
+	httpListed := slices.Contains(sources, SourceHTTP)
+	if !isTrue(envOrDefault(envHTTPAPIDisabled, "false")) {
+		if !httpListed {
+			sources = append(sources, SourceHTTP)
+		}
+		return sources, nil
+	}
+
+	if httpListed {
+		return nil, fmt.Errorf("%s lists %q but %s is true", envMailerSources, SourceHTTP, envHTTPAPIDisabled)
+	}
+	return sources, nil
+}
+
+func listedSources() ([]SourceName, error) {
 	var sources []SourceName
 	for _, item := range strings.Split(envOrDefault(envMailerSources, defaultMailerSources), ",") {
 		name := SourceName(strings.ToLower(strings.TrimSpace(item)))

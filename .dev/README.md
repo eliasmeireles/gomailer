@@ -39,14 +39,14 @@ Its defaults follow `MAILER_ENV` (e.g. `from` is `onboarding@resend.dev` for Res
 
 ## HTTP API
 
-The mailer runs with `MAILER_SOURCES=rabbitmq,http,kafka`. Call the API directly:
+The mailer runs with `MAILER_SOURCES=rabbitmq,kafka`; the HTTP source is on by default. Call the API directly:
 
 ```bash
 curl -X POST http://localhost:8090/v1/emails -H "Authorization: Bearer dev-token" -H "Content-Type: application/json" \
   -d '{"from":"no-reply@example.com","receiver":"jane@example.com","subject":"Hi","body":"PGgxPkhpPC9oMT4="}'
 ```
 
-Override the sources or the token with `MAILER_SOURCES=http make dev-up` and `HTTP_API_KEY=<token>`.
+Override the sources or the token with `MAILER_SOURCES=http make dev-up` (HTTP only) and `HTTP_API_KEY=<token>`.
 
 ## Test Scenarios
 
