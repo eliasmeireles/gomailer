@@ -11,7 +11,7 @@ import (
 )
 
 func validEmail() Email {
-	return Email{From: "no-reply@exemplo.com.br", To: []string{"maria@exemplo.com.br"}, Subject: "Oi", HTML: "<p>Olá</p>"}
+	return Email{From: "no-reply@example.com", To: []string{"jane@example.com"}, Subject: "Hi", HTML: "<p>Hello</p>"}
 }
 
 func TestEmailValidate(t *testing.T) {
@@ -37,12 +37,12 @@ func TestPrepare(t *testing.T) {
 
 	t.Run("given an id then keep it", func(t *testing.T) {
 		input := validEmail()
-		input.ID = "pedido-1"
+		input.ID = "order-1"
 
 		email, err := Prepare(input)
 
 		require.NoError(t, err)
-		assert.Equal(t, "pedido-1", email.ID)
+		assert.Equal(t, "order-1", email.ID)
 	})
 
 	t.Run("given an invalid email then return the validation error", func(t *testing.T) {
@@ -55,31 +55,31 @@ func TestPrepare(t *testing.T) {
 func TestEmailMarshalJSON(t *testing.T) {
 	t.Run("must encode the gomailer wire format", func(t *testing.T) {
 		email := Email{
-			ID:          "pedido-1",
-			From:        " no-reply@exemplo.com.br ",
-			To:          []string{"maria@exemplo.com.br", " "},
-			Cc:          []string{"joao@exemplo.com.br"},
-			Subject:     "Oi",
-			HTML:        "<p>Olá</p>",
-			Attachments: []Attachment{{Name: "a.txt", ContentType: "text/plain", Content: []byte("oi")}, {Name: "b.bin", Content: []byte{1}}},
-			Callback:    &Callback{Failure: &CallbackTarget{URL: "https://exemplo.com.br/falhas"}},
+			ID:          "order-1",
+			From:        " no-reply@example.com ",
+			To:          []string{"jane@example.com", " "},
+			Cc:          []string{"john@example.com"},
+			Subject:     "Hi",
+			HTML:        "<p>Hello</p>",
+			Attachments: []Attachment{{Name: "a.txt", ContentType: "text/plain", Content: []byte("hi")}, {Name: "b.bin", Content: []byte{1}}},
+			Callback:    &Callback{Failure: &CallbackTarget{URL: "https://example.com/failures"}},
 		}
 
 		raw, err := json.Marshal(email)
 
 		require.NoError(t, err)
 		assert.JSONEq(t, `{
-			"id": "pedido-1",
-			"from": "no-reply@exemplo.com.br",
-			"receiver": ["maria@exemplo.com.br"],
-			"cc": ["joao@exemplo.com.br"],
-			"subject": "Oi",
-			"body": "`+base64.StdEncoding.EncodeToString([]byte("<p>Olá</p>"))+`",
+			"id": "order-1",
+			"from": "no-reply@example.com",
+			"receiver": ["jane@example.com"],
+			"cc": ["john@example.com"],
+			"subject": "Hi",
+			"body": "`+base64.StdEncoding.EncodeToString([]byte("<p>Hello</p>"))+`",
 			"attachments": [
-				{"name": "a.txt", "type": "text/plain", "data": "b2k=", "decoder": "base64"},
+				{"name": "a.txt", "type": "text/plain", "data": "aGk=", "decoder": "base64"},
 				{"name": "b.bin", "type": "application/octet-stream", "data": "AQ==", "decoder": "base64"}
 			],
-			"callback": {"failure": {"url": "https://exemplo.com.br/falhas"}}
+			"callback": {"failure": {"url": "https://example.com/failures"}}
 		}`, string(raw))
 	})
 

@@ -24,8 +24,8 @@ build:
 # Local test stack (.dev). MAILER_ENV selects .dev/env/<env>.env (default: smtp -> Mailpit).
 MAILER_ENV ?= smtp
 MESSAGE ?= success
-FROM ?= no-reply@exemplo.com.br
-TO ?= maria@exemplo.com.br
+FROM ?= no-reply@example.com
+TO ?= jane@example.com
 CC ?=
 BCC ?=
 DEV_COMPOSE := MAILER_ENV=$(MAILER_ENV) docker compose -f .dev/docker-compose.yaml

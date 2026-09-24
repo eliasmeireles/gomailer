@@ -55,19 +55,19 @@ Messages are read from `RABBITMQ_QUEUE` (default `mailer-service`). The `body` i
 
 ```json
 {
-  "id": "pedido-123-confirmacao",
-  "from": "no-reply@exemplo.com.br",
-  "receiver": ["maria@exemplo.com.br", "joao@exemplo.com.br"],
-  "cc": "pedro@exemplo.com.br",
-  "bcc": ["ana@exemplo.com.br"],
+  "id": "order-123-confirmation",
+  "from": "no-reply@example.com",
+  "receiver": ["jane@example.com", "john@example.com"],
+  "cc": "peter@example.com",
+  "bcc": ["anna@example.com"],
   "subject": "Email Subject",
-  "body": "PGgxPk9sw6E8L2gxPg==",
+  "body": "PGgxPkhlbGxvPC9oMT4=",
   "attachments": [
     { "name": "document.pdf", "data": "base64EncodedData...", "type": "application/pdf", "decoder": "base64" }
   ],
   "callback": {
-    "success": { "url": "https://exemplo.com.br/mailer/sent", "headers": { "Authorization": "Bearer <token>" } },
-    "failure": { "url": "https://exemplo.com.br/mailer/failures", "headers": { "Authorization": "Bearer <token>" } }
+    "success": { "url": "https://example.com/mailer/sent", "headers": { "Authorization": "Bearer <token>" } },
+    "failure": { "url": "https://example.com/mailer/failures", "headers": { "Authorization": "Bearer <token>" } }
   }
 }
 ```
@@ -90,16 +90,16 @@ Messages are read from `RABBITMQ_QUEUE` (default `mailer-service`). The `body` i
 Both callbacks are optional and independent. The service sends `POST <url>` with `Content-Type: application/json` plus the target `headers`. The payload has the same shape for both, so a single URL can handle them:
 
 ```json
-{ "id": "pedido-123-confirmacao", "subject": "Email Subject", "status": "sent", "occurredAt": "2026-09-23T12:00:00Z" }
+{ "id": "order-123-confirmation", "subject": "Email Subject", "status": "sent", "occurredAt": "2026-09-23T12:00:00Z" }
 ```
 
 ```json
 {
-  "id": "pedido-123-confirmacao",
+  "id": "order-123-confirmation",
   "subject": "Email Subject",
   "status": "failed",
   "errorCode": "api_sender_not_allowed",
-  "cause": "failed to send email to maria@exemplo.com.br: resend API returned status 403: validation_error: The exemplo.com.br domain is not verified.",
+  "cause": "failed to send email to jane@example.com: resend API returned status 403: validation_error: The example.com domain is not verified.",
   "occurredAt": "2026-09-23T12:00:00Z"
 }
 ```
@@ -143,11 +143,11 @@ Enable it with `MAILER_SOURCES=http` (or `rabbitmq,http`). The request body is t
 curl -X POST http://localhost:8081/v1/emails \
   -H "Authorization: Bearer $HTTP_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"id":"pedido-123","from":"no-reply@exemplo.com.br","receiver":["maria@exemplo.com.br"],"subject":"Olá","body":"PGgxPk9sw6E8L2gxPg=="}'
+  -d '{"id":"order-123","from":"no-reply@example.com","receiver":["jane@example.com"],"subject":"Hello","body":"PGgxPkhlbGxvPC9oMT4="}'
 ```
 
 ```json
-{ "id": "pedido-123", "subject": "Olá", "status": "sent", "occurredAt": "2026-09-23T12:00:00Z" }
+{ "id": "order-123", "subject": "Hello", "status": "sent", "occurredAt": "2026-09-23T12:00:00Z" }
 ```
 
 | Status | When |
@@ -169,7 +169,7 @@ Go applications can use the client library instead of writing their own publishe
 
 ```go
 sender, _ := rabbitmq.New(rabbitmq.Config{URL: "amqp://user:pass@rabbitmq:5672/notification", Queue: "mailer-service"})
-err := sender.Send(ctx, client.Email{From: "no-reply@exemplo.com.br", To: []string{"maria@exemplo.com.br"}, Subject: "Olá", HTML: "<p>Olá</p>"})
+err := sender.Send(ctx, client.Email{From: "no-reply@example.com", To: []string{"jane@example.com"}, Subject: "Hello", HTML: "<p>Hello</p>"})
 ```
 
 ## Configuration

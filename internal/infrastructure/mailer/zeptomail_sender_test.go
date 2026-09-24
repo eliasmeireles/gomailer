@@ -45,9 +45,9 @@ func TestZeptoMailSenderSend(t *testing.T) {
 		captured := &capturedZeptoRequest{}
 		server := newZeptoMailServer(t, http.StatusCreated, `{"data":[{"code":"EM_104","message":"OK"}],"message":"OK","request_id":"req-1"}`, captured)
 		data := newValidEmail()
-		data.Receiver = model.Recipients{testRecipient, "joao@exemplo.com.br"}
-		data.Cc = model.Recipients{"cc@exemplo.com.br"}
-		data.Bcc = model.Recipients{"bcc@exemplo.com.br"}
+		data.Receiver = model.Recipients{testRecipient, "john@example.com"}
+		data.Cc = model.Recipients{"cc@example.com"}
+		data.Bcc = model.Recipients{"bcc@example.com"}
 		data.Attachments = &[]model.Attachment{{Name: testFileName, Type: testFileType, Data: helloBase64}}
 
 		err := newTestZeptoMailSender(server).Send(data)
@@ -60,10 +60,10 @@ func TestZeptoMailSenderSend(t *testing.T) {
 			From: zeptoMailAddress{Address: testSender},
 			To: []zeptoMailRecipient{
 				{EmailAddress: zeptoMailAddress{Address: testRecipient}},
-				{EmailAddress: zeptoMailAddress{Address: "joao@exemplo.com.br"}},
+				{EmailAddress: zeptoMailAddress{Address: "john@example.com"}},
 			},
-			Cc:       []zeptoMailRecipient{{EmailAddress: zeptoMailAddress{Address: "cc@exemplo.com.br"}}},
-			Bcc:      []zeptoMailRecipient{{EmailAddress: zeptoMailAddress{Address: "bcc@exemplo.com.br"}}},
+			Cc:       []zeptoMailRecipient{{EmailAddress: zeptoMailAddress{Address: "cc@example.com"}}},
+			Bcc:      []zeptoMailRecipient{{EmailAddress: zeptoMailAddress{Address: "bcc@example.com"}}},
 			Subject:  testSubject,
 			HTMLBody: testBody,
 			Attachments: []zeptoMailAttachment{{

@@ -69,6 +69,6 @@ func TestTruncate(t *testing.T) {
 	})
 
 	t.Run("given a long multibyte value then cut by runes", func(t *testing.T) {
-		assert.Equal(t, "ãé", truncate("ãéí", 2))
+		assert.Equal(t, "日本", truncate("日本語", 2))
 	})
 }

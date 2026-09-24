@@ -2,19 +2,19 @@
   "id": "$MAIL_ID",
   "from": "$MAIL_FROM",
   "receiver": "$MAIL_TO",
-  "subject": "Mailer App - teste de falha (body inválido)",
-  "body": "isto-nao-e-base64!!!",
+  "subject": "Mailer App - failure test (invalid body)",
+  "body": "not-valid-base64!!!",
   "callback": {
     "success": {
       "url": "$CALLBACK_SUCCESS_URL",
       "headers": {
-        "Authorization": "Bearer token-de-teste"
+        "Authorization": "Bearer test-token"
       }
     },
     "failure": {
       "url": "$CALLBACK_FAILURE_URL",
       "headers": {
-        "Authorization": "Bearer token-de-teste"
+        "Authorization": "Bearer test-token"
       }
     }
   }

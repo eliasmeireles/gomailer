@@ -21,11 +21,11 @@ func TestClientSend(t *testing.T) {
 			auth, path = r.Header.Get("Authorization"), r.URL.Path
 			_ = json.NewDecoder(r.Body).Decode(&received)
 			w.WriteHeader(http.StatusUnprocessableEntity)
-			_, _ = w.Write([]byte(`{"id":"1","subject":"Oi","status":"failed","errorCode":"api_invalid_receiver","cause":"invalid to"}`))
+			_, _ = w.Write([]byte(`{"id":"1","subject":"Hi","status":"failed","errorCode":"api_invalid_receiver","cause":"invalid to"}`))
 		}))
 		defer server.Close()
 
-		response, err := NewClient(server.URL, "dev-token").Send(context.Background(), message.Email{ID: "1", Subject: "Oi"})
+		response, err := NewClient(server.URL, "dev-token").Send(context.Background(), message.Email{ID: "1", Subject: "Hi"})
 
 		require.NoError(t, err)
 		assert.Equal(t, "Bearer dev-token", auth)

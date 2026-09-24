@@ -12,11 +12,11 @@ import (
 )
 
 const (
-	testSender    = "no-reply@exemplo.com.br"
-	testRecipient = "maria@exemplo.com.br"
-	testSubject   = "Assunto de teste"
-	testBody      = "<p>Olá</p>"
-	testFileName  = "arquivo.txt"
+	testSender    = "no-reply@example.com"
+	testRecipient = "jane@example.com"
+	testSubject   = "Test subject"
+	testBody      = "<p>Hello</p>"
+	testFileName  = "file.txt"
 	testFileType  = "text/plain"
 	helloBase64   = "SGVsbG8gV29ybGQ="
 )
@@ -57,11 +57,11 @@ func TestValidateEmail(t *testing.T) {
 func TestAllRecipients(t *testing.T) {
 	t.Run("given receiver, cc and bcc then return all of them in order", func(t *testing.T) {
 		data := newValidEmail()
-		data.Cc = model.Recipients{"cc1@exemplo.com.br", "cc2@exemplo.com.br"}
-		data.Bcc = model.Recipients{"bcc@exemplo.com.br"}
+		data.Cc = model.Recipients{"cc1@example.com", "cc2@example.com"}
+		data.Bcc = model.Recipients{"bcc@example.com"}
 
 		assert.Equal(t,
-			[]string{testRecipient, "cc1@exemplo.com.br", "cc2@exemplo.com.br", "bcc@exemplo.com.br"},
+			[]string{testRecipient, "cc1@example.com", "cc2@example.com", "bcc@example.com"},
 			allRecipients(data),
 		)
 	})
@@ -112,7 +112,7 @@ func TestDecodeAttachments(t *testing.T) {
 		data := newValidEmail()
 		data.Attachments = &[]model.Attachment{
 			{Name: testFileName, Type: testFileType, Data: helloBase64},
-			{Name: "quebrado.txt", Type: testFileType, Data: "invalid!@#"},
+			{Name: "broken.txt", Type: testFileType, Data: "invalid!@#"},
 		}
 
 		assert.Equal(t,

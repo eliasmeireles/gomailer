@@ -34,9 +34,9 @@ if err := sender.HealthCheck(ctx); err != nil { // connects and checks the queue
 }
 
 err = sender.Send(ctx, client.Email{
-	From:    "no-reply@exemplo.com.br",
-	To:      []string{"maria@exemplo.com.br"},
-	Subject: "Confirme sua conta",
+	From:    "no-reply@example.com",
+	To:      []string{"jane@example.com"},
+	Subject: "Confirm your account",
 	HTML:    renderedHTML, // plain HTML: the client base64-encodes it
 })
 ```
@@ -58,7 +58,7 @@ See `transport.FromEnv` for every variable.
 
 ```go
 email.Callback = &client.Callback{
-	Failure: &client.CallbackTarget{URL: "https://api.exemplo.com.br/mailer/failures", Headers: map[string]string{"Authorization": "Bearer " + token}},
+	Failure: &client.CallbackTarget{URL: "https://api.example.com/mailer/failures", Headers: map[string]string{"Authorization": "Bearer " + token}},
 }
 
 http.HandleFunc("POST /mailer/failures", func(w http.ResponseWriter, r *http.Request) {

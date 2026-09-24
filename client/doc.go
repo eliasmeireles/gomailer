@@ -9,10 +9,10 @@
 //	})
 //	...
 //	err = sender.Send(ctx, client.Email{
-//		From:    "no-reply@exemplo.com.br",
-//		To:      []string{"maria@exemplo.com.br"},
-//		Subject: "Bem-vinda",
-//		HTML:    "<h1>Olá, Maria</h1>",
+//		From:    "no-reply@example.com",
+//		To:      []string{"jane@example.com"},
+//		Subject: "Welcome",
+//		HTML:    "<h1>Hello, Jane</h1>",
 //	})
 //
 // The client encodes the wire format (base64 body and attachments, recipient arrays) and

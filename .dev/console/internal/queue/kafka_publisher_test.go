@@ -22,7 +22,7 @@ func TestKafkaPublisher(t *testing.T) {
 		publisher, err := NewKafkaPublisher(cluster.ListenAddrs(), "mailer-service")
 		require.NoError(t, err)
 
-		require.NoError(t, publisher.Publish(context.Background(), message.Email{ID: "k1", Subject: "Oi"}))
+		require.NoError(t, publisher.Publish(context.Background(), message.Email{ID: "k1", Subject: "Hi"}))
 
 		reader, err := kgo.NewClient(kgo.SeedBrokers(cluster.ListenAddrs()...), kgo.ConsumeTopics("mailer-service"), kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()))
 		require.NoError(t, err)
@@ -34,7 +34,7 @@ func TestKafkaPublisher(t *testing.T) {
 		assert.Equal(t, "k1", string(records[0].Key))
 		var email message.Email
 		require.NoError(t, json.Unmarshal(records[0].Value, &email))
-		assert.Equal(t, "Oi", email.Subject)
+		assert.Equal(t, "Hi", email.Subject)
 	})
 
 	t.Run("given unreachable brokers then return an error", func(t *testing.T) {

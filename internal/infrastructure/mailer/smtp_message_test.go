@@ -38,14 +38,14 @@ func TestBuildMessage(t *testing.T) {
 
 	t.Run("given cc and bcc then add the Cc header and never a Bcc header", func(t *testing.T) {
 		data := newValidEmail()
-		data.Cc = model.Recipients{"cc1@exemplo.com.br", "cc2@exemplo.com.br"}
-		data.Bcc = model.Recipients{"bcc@exemplo.com.br"}
+		data.Cc = model.Recipients{"cc1@example.com", "cc2@example.com"}
+		data.Bcc = model.Recipients{"bcc@example.com"}
 
 		message := buildMessage(data)
 
-		assert.Contains(t, message, "Cc: cc1@exemplo.com.br, cc2@exemplo.com.br\r\n")
+		assert.Contains(t, message, "Cc: cc1@example.com, cc2@example.com\r\n")
 		assert.NotContains(t, message, "Bcc")
-		assert.NotContains(t, message, "bcc@exemplo.com.br")
+		assert.NotContains(t, message, "bcc@example.com")
 	})
 
 	t.Run("given no cc then omit the Cc header", func(t *testing.T) {

@@ -8,7 +8,7 @@ async function loadPanel(element) {
   try {
     await replaceWith(element, await fetch(element.dataset.src));
   } catch (error) {
-    element.innerHTML = `<div class="notice error">Falha ao atualizar: ${error.message}</div>`;
+    element.innerHTML = `<div class="notice error">Refresh failed: ${error.message}</div>`;
   }
 }
 
@@ -41,7 +41,7 @@ function setupSendForm() {
       await replaceWith(result, await fetch("/send", { method: "POST", body: new FormData(form) }));
       refreshPolledPanels();
     } catch (error) {
-      result.innerHTML = `<div class="notice error">Falha ao enviar: ${error.message}</div>`;
+      result.innerHTML = `<div class="notice error">Send failed: ${error.message}</div>`;
     } finally {
       button.disabled = false;
     }

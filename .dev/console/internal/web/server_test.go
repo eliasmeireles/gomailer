@@ -42,7 +42,7 @@ func (f *fakeConsole) Send(_ context.Context, form message.Form) (service.SendRe
 	if f.sendErr != nil {
 		return service.SendResult{}, f.sendErr
 	}
-	email, err := message.Build(form, func() string { return "id-gerado" })
+	email, err := message.Build(form, func() string { return "generated-id" })
 	result := service.SendResult{Email: email, Channel: message.ChannelRabbitMQ}
 	if form.Channel == message.ChannelHTTP {
 		result.Channel = message.ChannelHTTP
@@ -129,7 +129,7 @@ func TestIndex(t *testing.T) {
 		response := serve(newTestServer(t, &fakeConsole{}, "smtp"), httptest.NewRequest(http.MethodGet, "/", nil))
 
 		assert.Equal(t, http.StatusOK, response.Code)
-		assert.Contains(t, response.Body.String(), `value="no-reply@exemplo.com.br"`)
+		assert.Contains(t, response.Body.String(), `value="no-reply@example.com"`)
 		assert.Contains(t, response.Body.String(), `value="http://callback:9099/failures"`)
 		assert.Contains(t, response.Body.String(), `value="http://callback:9099/success"`)
 		assert.Contains(t, response.Body.String(), "Mailer App")
@@ -159,62 +159,62 @@ func TestSend(t *testing.T) {
 	t.Run("given a valid form then publish and render the payload preview", func(t *testing.T) {
 		console := &fakeConsole{}
 		req := multipartRequest(t, map[string]string{
-			"from": "no-reply@exemplo.com.br", "to": "maria@exemplo.com.br", "cc": "joao@exemplo.com.br",
-			"subject": "Oi", "html": "<p>Oi</p>", "format": "string",
+			"from": "no-reply@example.com", "to": "jane@example.com", "cc": "john@example.com",
+			"subject": "Hi", "html": "<p>Hi</p>", "format": "string",
 			"successCallbackEnabled": "on", "successCallbackUrl": "http://callback:9099/success",
 			"failureCallbackEnabled": "on", "failureCallbackUrl": "http://callback:9099/failures", "callbackAuthorization": "Bearer t",
-		}, "nota.txt", "conteudo")
+		}, "note.txt", "content")
 
 		response := serve(newTestServer(t, console, "smtp"), req)
 
 		assert.Equal(t, http.StatusOK, response.Code)
-		assert.Contains(t, response.Body.String(), "Publicado na fila (rabbitmq)")
-		assert.Contains(t, response.Body.String(), "id-gerado")
+		assert.Contains(t, response.Body.String(), "Published (rabbitmq)")
+		assert.Contains(t, response.Body.String(), "generated-id")
 		assert.Equal(t, message.FormatString, console.sentForm.Format)
-		assert.Equal(t, "joao@exemplo.com.br", console.sentForm.Cc)
+		assert.Equal(t, "john@example.com", console.sentForm.Cc)
 		assert.True(t, console.sentForm.SuccessCallbackEnabled)
 		assert.True(t, console.sentForm.FailureCallbackEnabled)
 		assert.Equal(t, "http://callback:9099/success", console.sentForm.SuccessCallbackURL)
 		assert.False(t, console.sentForm.InvalidBody)
 		require.Len(t, console.sentForm.Files, 1)
-		assert.Equal(t, "nota.txt", console.sentForm.Files[0].Name)
-		assert.Equal(t, []byte("conteudo"), console.sentForm.Files[0].Content)
+		assert.Equal(t, "note.txt", console.sentForm.Files[0].Name)
+		assert.Equal(t, []byte("content"), console.sentForm.Files[0].Content)
 	})
 
 	t.Run("given the http channel then render the api response", func(t *testing.T) {
 		console := &fakeConsole{response: &api.Response{StatusCode: 422, Event: monitor.DeliveryEvent{
-			ID: "id-gerado", Status: "failed", ErrorCode: "api_invalid_receiver", Cause: "invalid to",
+			ID: "generated-id", Status: "failed", ErrorCode: "api_invalid_receiver", Cause: "invalid to",
 		}}}
 		req := multipartRequest(t, map[string]string{
-			"channel": "http", "from": "no-reply@exemplo.com.br", "to": "maria@exemplo.com.br", "subject": "Oi", "html": "<p>Oi</p>",
+			"channel": "http", "from": "no-reply@example.com", "to": "jane@example.com", "subject": "Hi", "html": "<p>Hi</p>",
 		}, "", "")
 
 		response := serve(newTestServer(t, console, "smtp"), req)
 
 		assert.Equal(t, message.ChannelHTTP, console.sentForm.Channel)
 		assert.Contains(t, response.Body.String(), "HTTP 422 · api_invalid_receiver")
-		assert.Contains(t, response.Body.String(), "Resposta da API")
+		assert.Contains(t, response.Body.String(), "API response")
 	})
 
 	t.Run("given the http channel and a sent answer then render success", func(t *testing.T) {
-		console := &fakeConsole{response: &api.Response{StatusCode: 200, Event: monitor.DeliveryEvent{ID: "id-gerado", Status: "sent"}}}
+		console := &fakeConsole{response: &api.Response{StatusCode: 200, Event: monitor.DeliveryEvent{ID: "generated-id", Status: "sent"}}}
 		req := multipartRequest(t, map[string]string{
-			"channel": "http", "from": "no-reply@exemplo.com.br", "to": "maria@exemplo.com.br", "subject": "Oi", "html": "<p>Oi</p>",
+			"channel": "http", "from": "no-reply@example.com", "to": "jane@example.com", "subject": "Hi", "html": "<p>Hi</p>",
 		}, "", "")
 
 		body := serve(newTestServer(t, console, "smtp"), req).Body.String()
 
-		assert.Contains(t, body, "HTTP 200 · enviado")
+		assert.Contains(t, body, "HTTP 200 · sent")
 	})
 
 	t.Run("given a service error then render it with 422", func(t *testing.T) {
-		console := &fakeConsole{sendErr: errors.New("informe o assunto")}
-		req := multipartRequest(t, map[string]string{"from": "no-reply@exemplo.com.br"}, "", "")
+		console := &fakeConsole{sendErr: errors.New("subject is required")}
+		req := multipartRequest(t, map[string]string{"from": "no-reply@example.com"}, "", "")
 
 		response := serve(newTestServer(t, console, "smtp"), req)
 
 		assert.Equal(t, http.StatusUnprocessableEntity, response.Code)
-		assert.Contains(t, response.Body.String(), "informe o assunto")
+		assert.Contains(t, response.Body.String(), "subject is required")
 	})
 
 	t.Run("given a non-multipart body then return 400", func(t *testing.T) {
@@ -223,7 +223,7 @@ func TestSend(t *testing.T) {
 		response := serve(newTestServer(t, &fakeConsole{}, "smtp"), req)
 
 		assert.Equal(t, http.StatusBadRequest, response.Code)
-		assert.Contains(t, response.Body.String(), "formulário inválido")
+		assert.Contains(t, response.Body.String(), "invalid form")
 	})
 }
 
@@ -237,12 +237,12 @@ func TestPanels(t *testing.T) {
 
 		body := serve(newTestServer(t, console, "resend"), httptest.NewRequest(http.MethodGet, "/partials/status", nil)).Body.String()
 
-		assert.Contains(t, body, "mailer pronto")
+		assert.Contains(t, body, "mailer ready")
 		assert.Contains(t, body, "<strong>3</strong>")
 		assert.Contains(t, body, "<strong>resend</strong>")
-		assert.Contains(t, body, "em retry <strong>2</strong>")
+		assert.Contains(t, body, "retrying <strong>2</strong>")
 		assert.Contains(t, body, "DLQ <strong>5</strong>")
-		assert.Contains(t, body, `title="kafka down">Kafka indisponível`)
+		assert.Contains(t, body, `title="kafka down">Kafka unavailable`)
 	})
 
 	t.Run("given a queue error then render the unavailable pill", func(t *testing.T) {
@@ -250,37 +250,37 @@ func TestPanels(t *testing.T) {
 
 		body := serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/status", nil)).Body.String()
 
-		assert.Contains(t, body, "mailer indisponível")
-		assert.Contains(t, body, "RabbitMQ indisponível")
+		assert.Contains(t, body, "mailer unavailable")
+		assert.Contains(t, body, "RabbitMQ unavailable")
 	})
 
 	t.Run("given inbox messages then render them with mailpit links", func(t *testing.T) {
 		console := &fakeConsole{messages: []monitor.InboxMessage{{
-			ID: "m1", Subject: "Oi", Created: time.Now(),
-			From:        monitor.Address{Address: "no-reply@exemplo.com.br"},
-			To:          []monitor.Address{{Address: "maria@exemplo.com.br"}, {Address: "joao@exemplo.com.br"}},
-			Bcc:         []monitor.Address{{Address: "ana@exemplo.com.br"}},
+			ID: "m1", Subject: "Hi", Created: time.Now(),
+			From:        monitor.Address{Address: "no-reply@example.com"},
+			To:          []monitor.Address{{Address: "jane@example.com"}, {Address: "john@example.com"}},
+			Bcc:         []monitor.Address{{Address: "anna@example.com"}},
 			Attachments: 2,
 		}}}
 
 		body := serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/inbox", nil)).Body.String()
 
 		assert.Contains(t, body, `href="http://localhost:8025/view/m1"`)
-		assert.Contains(t, body, "maria@exemplo.com.br, joao@exemplo.com.br")
-		assert.Contains(t, body, "bcc ana@exemplo.com.br")
-		assert.Contains(t, body, "2 anexo(s)")
+		assert.Contains(t, body, "jane@example.com, john@example.com")
+		assert.Contains(t, body, "bcc anna@example.com")
+		assert.Contains(t, body, "2 attachment(s)")
 	})
 
 	t.Run("given no callbacks then render the empty state", func(t *testing.T) {
 		body := serve(newTestServer(t, &fakeConsole{}, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/callbacks", nil)).Body.String()
 
-		assert.Contains(t, body, "Nenhum callback recebido")
+		assert.Contains(t, body, "No callbacks received")
 	})
 
 	t.Run("given a success callback then render the sent badge without cause", func(t *testing.T) {
 		console := &fakeConsole{events: []monitor.CallbackEvent{{
 			ReceivedAt: time.Now(), Status: 204,
-			Body: monitor.DeliveryEvent{ID: "s1", Subject: "Oi", Status: "sent"},
+			Body: monitor.DeliveryEvent{ID: "s1", Subject: "Hi", Status: "sent"},
 		}}}
 
 		body := serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/callbacks", nil)).Body.String()
@@ -292,13 +292,13 @@ func TestPanels(t *testing.T) {
 	t.Run("given callbacks then render id, subject and cause", func(t *testing.T) {
 		console := &fakeConsole{events: []monitor.CallbackEvent{{
 			ReceivedAt: time.Now(), Status: 204,
-			Body: monitor.DeliveryEvent{ID: "e1", Subject: "Oi", Status: "failed", ErrorCode: "api_sender_not_allowed", Cause: "domínio não verificado"},
+			Body: monitor.DeliveryEvent{ID: "e1", Subject: "Hi", Status: "failed", ErrorCode: "api_sender_not_allowed", Cause: "unverified domain"},
 		}}}
 
 		body := serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/callbacks", nil)).Body.String()
 
 		assert.Contains(t, body, "e1")
-		assert.Contains(t, body, "domínio não verificado")
+		assert.Contains(t, body, "unverified domain")
 		assert.Contains(t, body, "api_sender_not_allowed")
 	})
 
@@ -367,7 +367,7 @@ func TestDeadLetterPanel(t *testing.T) {
 		body := serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/dlq", nil)).Body.String()
 
 		assert.Contains(t, body, "api_rate_limited")
-		assert.Contains(t, body, "3 tentativa(s)")
+		assert.Contains(t, body, "3 attempt(s)")
 		assert.Contains(t, body, `<span class="badge source">kafka</span>`)
 		assert.Contains(t, body, "too many")
 	})
@@ -375,7 +375,7 @@ func TestDeadLetterPanel(t *testing.T) {
 	t.Run("given no dead letters then render the empty state", func(t *testing.T) {
 		body := serve(newTestServer(t, &fakeConsole{}, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/dlq", nil)).Body.String()
 
-		assert.Contains(t, body, "Nenhuma mensagem na DLQ")
+		assert.Contains(t, body, "No messages in the DLQ")
 	})
 
 	t.Run("given purge then empty the queue", func(t *testing.T) {
@@ -396,9 +396,9 @@ func TestChaosPanel(t *testing.T) {
 
 		body := serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/chaos", nil)).Body.String()
 
-		assert.Contains(t, body, `<option value="550" selected>550 definitivo</option>`)
-		assert.Contains(t, body, "falhando 2× com 429")
-		assert.Contains(t, body, "aceitos 1 · rejeitados 4")
+		assert.Contains(t, body, `<option value="550" selected>550 permanent</option>`)
+		assert.Contains(t, body, "failing 2× with 429")
+		assert.Contains(t, body, "accepted 1 · rejected 4")
 	})
 
 	t.Run("given unavailable sides then render their errors", func(t *testing.T) {
@@ -406,8 +406,8 @@ func TestChaosPanel(t *testing.T) {
 
 		body := serve(newTestServer(t, console, "smtp"), httptest.NewRequest(http.MethodGet, "/partials/chaos", nil)).Body.String()
 
-		assert.Contains(t, body, "Mailpit indisponível: mailpit down")
-		assert.Contains(t, body, "API mock indisponível: mock down")
+		assert.Contains(t, body, "Mailpit unavailable: mailpit down")
+		assert.Contains(t, body, "Mock API unavailable: mock down")
 	})
 
 	t.Run("given smtp selections then enable the chosen triggers", func(t *testing.T) {
@@ -435,7 +435,7 @@ func TestChaosPanel(t *testing.T) {
 	t.Run("given an unknown preset then render an error", func(t *testing.T) {
 		body := postForm(newTestServer(t, &fakeConsole{}, "smtp"), "/partials/chaos/api", url.Values{"preset": {"nope"}, "failNext": {"1"}})
 
-		assert.Contains(t, body, "escolha um cenário")
+		assert.Contains(t, body, "choose a scenario")
 	})
 
 	t.Run("given reset then turn everything off", func(t *testing.T) {

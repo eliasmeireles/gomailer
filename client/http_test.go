@@ -41,9 +41,9 @@ func newTestHTTPSender(t *testing.T, url string) *HTTPSender {
 func TestHTTPSender(t *testing.T) {
 	t.Run("given a sent answer then return the event", func(t *testing.T) {
 		rec := &recorded{}
-		server := newAPIServer(t, http.StatusOK, `{"id":"pedido-1","subject":"Oi","status":"sent","occurredAt":"2026-09-23T12:00:00Z"}`, rec)
+		server := newAPIServer(t, http.StatusOK, `{"id":"order-1","subject":"Hi","status":"sent","occurredAt":"2026-09-23T12:00:00Z"}`, rec)
 		email := validEmail()
-		email.ID = "pedido-1"
+		email.ID = "order-1"
 
 		event, err := newTestHTTPSender(t, server.URL).Deliver(context.Background(), email)
 
@@ -51,7 +51,7 @@ func TestHTTPSender(t *testing.T) {
 		assert.Equal(t, StatusSent, event.Status)
 		assert.Equal(t, "Bearer token", rec.auth)
 		assert.Equal(t, "/v1/emails", rec.path)
-		assert.Equal(t, "pedido-1", rec.body["id"])
+		assert.Equal(t, "order-1", rec.body["id"])
 	})
 
 	t.Run("given a failed answer then return a DeliveryError with the event", func(t *testing.T) {
@@ -107,12 +107,12 @@ func TestHTTPSender(t *testing.T) {
 
 func TestParseDeliveryEvent(t *testing.T) {
 	t.Run("given a callback body then decode the event", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/falhas", strings.NewReader(`{"id":"1","subject":"Oi","status":"failed","errorCode":"smtp_temporary_failure","cause":"451"}`))
+		req := httptest.NewRequest(http.MethodPost, "/failures", strings.NewReader(`{"id":"1","subject":"Hi","status":"failed","errorCode":"smtp_temporary_failure","cause":"451"}`))
 
 		event, err := ParseDeliveryEvent(req)
 
 		require.NoError(t, err)
-		assert.Equal(t, DeliveryEvent{ID: "1", Subject: "Oi", Status: StatusFailed, ErrorCode: CodeSMTPTemporaryFailure, Cause: "451"}, event)
+		assert.Equal(t, DeliveryEvent{ID: "1", Subject: "Hi", Status: StatusFailed, ErrorCode: CodeSMTPTemporaryFailure, Cause: "451"}, event)
 	})
 
 	t.Run("given an invalid body then return error", func(t *testing.T) {

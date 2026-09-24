@@ -2,6 +2,6 @@
   "id": "$MAIL_ID",
   "from": "$MAIL_FROM",
   "receiver": "$MAIL_TO",
-  "subject": "Mailer App - teste de falha sem callback (requeue)",
-  "body": "isto-nao-e-base64!!!"
+  "subject": "Mailer App - failure test without callback",
+  "body": "not-valid-base64!!!"
 }

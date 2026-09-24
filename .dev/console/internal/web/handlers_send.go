@@ -40,7 +40,7 @@ func (s *Server) send(w http.ResponseWriter, r *http.Request) {
 
 func parseForm(r *http.Request) (message.Form, error) {
 	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
-		return message.Form{}, fmt.Errorf("formulário inválido: %w", err)
+		return message.Form{}, fmt.Errorf("invalid form: %w", err)
 	}
 
 	files, err := readFiles(r)
@@ -73,12 +73,12 @@ func readFiles(r *http.Request) ([]message.File, error) {
 	for _, header := range r.MultipartForm.File["attachments"] {
 		file, err := header.Open()
 		if err != nil {
-			return nil, fmt.Errorf("anexo %q: %w", header.Filename, err)
+			return nil, fmt.Errorf("attachment %q: %w", header.Filename, err)
 		}
 		content, err := io.ReadAll(file)
 		file.Close()
 		if err != nil {
-			return nil, fmt.Errorf("anexo %q: %w", header.Filename, err)
+			return nil, fmt.Errorf("attachment %q: %w", header.Filename, err)
 		}
 		files = append(files, message.File{Name: header.Filename, Type: header.Header.Get("Content-Type"), Content: content})
 	}

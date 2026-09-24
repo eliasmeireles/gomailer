@@ -121,7 +121,7 @@ func (f *fakes) console(ready bool) *Console {
 }
 
 func validForm() message.Form {
-	return message.Form{From: "no-reply@exemplo.com.br", To: "maria@exemplo.com.br", Subject: "Oi", HTML: "<p>Oi</p>", Format: message.FormatArray}
+	return message.Form{From: "no-reply@example.com", To: "jane@example.com", Subject: "Hi", HTML: "<p>Hi</p>", Format: message.FormatArray}
 }
 
 func TestConsoleSend(t *testing.T) {

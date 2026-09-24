@@ -15,8 +15,8 @@ import (
 
 func newTestEvent() model.DeliveryEvent {
 	return model.DeliveryEvent{
-		ID:         "pedido-123",
-		Subject:    "Assunto",
+		ID:         "order-123",
+		Subject:    "Subject",
 		Status:     model.StatusFailed,
 		ErrorCode:  model.CodeSMTPConnectionFailed,
 		Cause:      "smtp down",
@@ -58,8 +58,8 @@ func TestHTTPNotifierNotify(t *testing.T) {
 		require.NoError(t, NewHTTPNotifier(server.Client()).Notify(model.CallbackTarget{URL: server.URL}, newTestEvent()))
 
 		assert.Equal(t, map[string]any{
-			"id":         "pedido-123",
-			"subject":    "Assunto",
+			"id":         "order-123",
+			"subject":    "Subject",
 			"status":     "failed",
 			"errorCode":  "smtp_connection_failed",
 			"cause":      "smtp down",

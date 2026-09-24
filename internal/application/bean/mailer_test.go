@@ -12,10 +12,10 @@ import (
 
 func TestNewSender(t *testing.T) {
 	t.Run("given smtp transport with full config then return a sender", func(t *testing.T) {
-		t.Setenv("SMTP_SERVER", "smtp.exemplo.com.br")
+		t.Setenv("SMTP_SERVER", "smtp.example.com")
 		t.Setenv("SMTP_SERVER_PORT", "465")
-		t.Setenv("SMTP_SERVER_USER", "usuario")
-		t.Setenv("SMTP_SERVER_PASS", "senha")
+		t.Setenv("SMTP_SERVER_USER", "user")
+		t.Setenv("SMTP_SERVER_PASS", "password")
 
 		sender, err := newSender(config.MailerSettings{Transport: config.TransportSMTP}, http.DefaultClient)
 

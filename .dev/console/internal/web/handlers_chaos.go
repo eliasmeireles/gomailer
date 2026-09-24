@@ -34,7 +34,7 @@ func (s *Server) configureMockAPI(w http.ResponseWriter, r *http.Request) {
 	preset, ok := findPreset(r.FormValue("preset"))
 	failNext, err := strconv.Atoi(r.FormValue("failNext"))
 	if !ok || err != nil || failNext < 0 {
-		s.renderChaos(w, r, fmt.Errorf("escolha um cenário e um número de falhas válido"))
+		s.renderChaos(w, r, fmt.Errorf("choose a scenario and a valid number of failures"))
 		return
 	}
 
