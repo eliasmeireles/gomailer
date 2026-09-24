@@ -163,6 +163,15 @@ curl -X POST http://localhost:8081/v1/emails \
 
 Requests without `id` get a generated UUID, returned in the response. Callbacks in the body are honored as with the queue. The endpoint always requires a Bearer token: the service refuses to start the HTTP source without `HTTP_API_KEYS`. Expose it only to trusted clients (it sends email from your domain).
 
+## Go Client
+
+Go applications can use the client library instead of writing their own publisher: [`client/`](client/README.md) (`go get github.com/eliasmeireles/gomailer/client`). It encodes the message contract and sends through RabbitMQ, Kafka or the HTTP API:
+
+```go
+sender, _ := rabbitmq.New(rabbitmq.Config{URL: "amqp://user:pass@rabbitmq:5672/notification", Queue: "mailer-service"})
+err := sender.Send(ctx, client.Email{From: "no-reply@exemplo.com.br", To: []string{"maria@exemplo.com.br"}, Subject: "Olá", HTML: "<p>Olá</p>"})
+```
+
 ## Configuration
 
 ### Sources
