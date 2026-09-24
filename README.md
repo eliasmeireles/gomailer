@@ -290,13 +290,74 @@ Unit tests: `make test`.
 
 ## Container Image
 
-Released images are published to `ghcr.io/eliasmeireles/gomailer` (tags `X.Y.Z`, `X.Y` and `latest`) by pushing a `vX.Y.Z` tag.
+Public multi-arch images (`linux/amd64`, `linux/arm64`) are published to [`ghcr.io/eliasmeireles/gomailer`](https://github.com/eliasmeireles/gomailer/pkgs/container/gomailer) when a `vX.Y.Z` tag is pushed. No login is required.
+
+| Tag | Points to |
+|---|---|
+| `X.Y.Z` (e.g. `1.0.0`) | That exact release (recommended for deployments) |
+| `X.Y` (e.g. `1.0`) | Latest patch of that minor version |
+| `latest` | Latest release |
 
 ```bash
-docker run --rm \
+docker pull ghcr.io/eliasmeireles/gomailer:1.0.0
+```
+
+The container exposes `8080` (health: `/healthz`, `/readyz`) and, when the HTTP source is enabled, `8081` (`POST /v1/emails`). All configuration comes from the [environment variables](#configuration).
+
+### HTTP source + Resend API (no broker needed)
+
+```bash
+docker run -d --name gomailer \
+  -e MAILER_SOURCES=http -e HTTP_API_KEYS=change-me \
   -e MAILER_TRANSPORT=api -e MAILER_API_CLIENT=resend -e RESEND_API_KEY=re_xxxxxxxxx \
-  -e RABBITMQ_HOST=rabbitmq -e RABBITMQ_USER=guest -e RABBITMQ_PASS=guest \
-  -p 8080:8080 ghcr.io/eliasmeireles/gomailer:latest
+  -p 8080:8080 -p 8081:8081 \
+  ghcr.io/eliasmeireles/gomailer:1.0.0
+
+curl -s localhost:8080/readyz
+curl -X POST localhost:8081/v1/emails \
+  -H "Authorization: Bearer change-me" -H "Content-Type: application/json" \
+  -d '{"from":"no-reply@example.com","receiver":["jane@example.com"],"subject":"Hello","body":"PGgxPkhlbGxvPC9oMT4="}'
+```
+
+### RabbitMQ source + SMTP
+
+Keep credentials out of your shell history with an env file:
+
+```bash
+cat > gomailer.env <<'ENV'
+MAILER_SOURCES=rabbitmq
+MAILER_TRANSPORT=smtp
+SMTP_SERVER=smtp.example.com
+SMTP_SERVER_PORT=465
+SMTP_SERVER_USER=no-reply@example.com
+SMTP_SERVER_PASS=change-me
+RABBITMQ_HOST=rabbitmq.example.com
+RABBITMQ_USER=gomailer
+RABBITMQ_PASS=change-me
+RABBITMQ_QUEUE=mailer-service
+ENV
+
+docker run -d --name gomailer --env-file gomailer.env -p 8080:8080 ghcr.io/eliasmeireles/gomailer:1.0.0
+docker logs -f gomailer
+```
+
+The RabbitMQ user needs configure on `<queue>`, `<queue>.retry.*` and `<queue>.dlq`; write on `amq.default`, `<queue>.retry.*` and `<queue>.dlq`; and read on `<queue>` and `<queue>.retry.*` (declaring a dead-lettering queue requires read).
+
+### Docker Compose
+
+```yaml
+services:
+  gomailer:
+    image: ghcr.io/eliasmeireles/gomailer:1.0.0
+    restart: unless-stopped
+    env_file: gomailer.env
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/readyz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
 ```
 
 To build and push your own multi-arch image: `make build IMAGE=<registry>/<name>`.
