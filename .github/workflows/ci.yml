@@ -25,10 +25,10 @@ jobs:
           go test -race ./...
 
       - name: Vet and test client library
-        working-directory: client
         run: |
-          go vet ./...
-          go test -race ./...
+          for module in client client/kafka client/transport; do
+            (cd "$module" && go vet ./... && go test -race ./...)
+          done
 
       - name: Vet and test dev console
         working-directory: .dev/console

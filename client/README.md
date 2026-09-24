@@ -2,15 +2,19 @@
 
 `github.com/eliasmeireles/gomailer/client` is the Go library to send emails through a [gomailer](../README.md) instance. It holds the message contract and one sender per transport:
 
-| Package | Sender |
-|---|---|
-| `client` | Contract (`Email`, `Attachment`, `Callback`, `DeliveryEvent`, error codes), `Sender` interface and the synchronous `HTTPSender` |
-| `client/rabbitmq` | Publishes to the gomailer queue with publisher confirms; reconnects lazily after a drop |
-| `client/kafka` | Produces to the gomailer topic, keyed by the email ID (TLS and SASL PLAIN/SCRAM supported) |
-| `client/transport` | Builds any of them from configuration (`transport.New` / `transport.FromEnv`) |
+| Module / package | Go | Sender |
+|---|---|---|
+| `github.com/eliasmeireles/gomailer/client` | 1.22+ | Contract (`Email`, `Attachment`, `Callback`, `DeliveryEvent`, error codes), `Sender` interface and the synchronous `HTTPSender` |
+| `github.com/eliasmeireles/gomailer/client/rabbitmq` (same module) | 1.22+ | Publishes to the gomailer queue with publisher confirms; reconnects lazily after a drop |
+| `github.com/eliasmeireles/gomailer/client/kafka` (own module) | 1.26+ | Produces to the gomailer topic, keyed by the email ID (TLS and SASL PLAIN/SCRAM supported) |
+| `github.com/eliasmeireles/gomailer/client/transport` (own module) | 1.26+ | Builds any of them from configuration (`transport.New` / `transport.FromEnv`) |
+
+Kafka lives in its own module so RabbitMQ/HTTP users don't pull its dependencies (or its Go version requirement).
 
 ```bash
-go get github.com/eliasmeireles/gomailer/client@latest
+go get github.com/eliasmeireles/gomailer/client@latest            # contract, HTTP, RabbitMQ
+go get github.com/eliasmeireles/gomailer/client/kafka@latest      # Kafka sender
+go get github.com/eliasmeireles/gomailer/client/transport@latest  # transport chosen by configuration
 ```
 
 ## Usage
@@ -78,4 +82,4 @@ The wire format stays compatible with older gomailer/mailer-app consumers.
 
 ## Versioning
 
-The library is a separate Go module, tagged `client/vX.Y.Z` (e.g. `go get github.com/eliasmeireles/gomailer/client@v0.1.0`).
+Each module is tagged with its path prefix: `client/vX.Y.Z`, `client/kafka/vX.Y.Z` and `client/transport/vX.Y.Z`.
