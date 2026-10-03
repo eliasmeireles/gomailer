@@ -3,6 +3,7 @@ package mailer
 import (
 	"encoding/base64"
 	"fmt"
+	"mime"
 	"strings"
 
 	"github.com/eliasmeireles/gomailer/internal/core/model"
@@ -14,12 +15,12 @@ const base64LineLength = 76
 func buildMessage(data model.SendEmailData) string {
 	var message strings.Builder
 
-	message.WriteString(fmt.Sprintf("From: %s\r\n", data.From))
+	message.WriteString(fmt.Sprintf("From: %s\r\n", senderAddress(data)))
 	message.WriteString(fmt.Sprintf("To: %s\r\n", data.Receiver))
 	if len(data.Cc) > 0 {
 		message.WriteString(fmt.Sprintf("Cc: %s\r\n", data.Cc))
 	}
-	message.WriteString(fmt.Sprintf("Subject: %s\r\n", data.Subject))
+	message.WriteString(fmt.Sprintf("Subject: %s\r\n", mime.QEncoding.Encode("UTF-8", data.Subject)))
 	message.WriteString("MIME-Version: 1.0\r\n")
 
 	attachments := decodeAttachments(data)

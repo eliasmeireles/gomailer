@@ -13,12 +13,14 @@ var ErrInvalidEmail = errors.New("invalid email")
 // Email is an email request handled by gomailer.
 type Email struct {
 	// ID identifies the request in logs and callbacks; a UUID is generated when empty.
-	ID      string
-	From    string
-	To      []string
-	Cc      []string
-	Bcc     []string
-	Subject string
+	ID   string
+	From string
+	// FromName is the optional sender display name ("Promogram").
+	FromName string
+	To       []string
+	Cc       []string
+	Bcc      []string
+	Subject  string
 	// HTML is the plain HTML body; it is base64-encoded on the wire.
 	HTML        string
 	Attachments []Attachment
@@ -81,6 +83,7 @@ func Prepare(email Email) (Email, error) {
 type wireEmail struct {
 	ID          string           `json:"id,omitempty"`
 	From        string           `json:"from"`
+	FromName    string           `json:"from_name,omitempty"`
 	Receiver    []string         `json:"receiver"`
 	Cc          []string         `json:"cc,omitempty"`
 	Bcc         []string         `json:"bcc,omitempty"`
@@ -103,6 +106,7 @@ func (e Email) MarshalJSON() ([]byte, error) {
 	wire := wireEmail{
 		ID:       e.ID,
 		From:     strings.TrimSpace(e.From),
+		FromName: strings.TrimSpace(e.FromName),
 		Receiver: nonBlank(e.To),
 		Cc:       nonBlank(e.Cc),
 		Bcc:      nonBlank(e.Bcc),
