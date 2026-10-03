@@ -60,6 +60,32 @@ func TestBuildMessage(t *testing.T) {
 	})
 }
 
+func TestBuildMessageSenderAndSubject(t *testing.T) {
+	t.Run("given a display name then the From header carries it", func(t *testing.T) {
+		data := newValidEmail()
+		data.FromName = "Promogram"
+
+		message := buildMessage(data)
+
+		assert.Contains(t, message, "From: \"Promogram\" <"+testSender+">\r\n")
+	})
+
+	t.Run("given a non-ascii subject then it is encoded", func(t *testing.T) {
+		data := newValidEmail()
+		data.Subject = "Reembolso do primeiro mês confirmado"
+
+		message := buildMessage(data)
+
+		assert.Contains(t, message, "Subject: =?UTF-8?q?Reembolso_do_primeiro_m=C3=AAs_confirmado?=\r\n")
+	})
+
+	t.Run("given an ascii subject then it is kept as is", func(t *testing.T) {
+		message := buildMessage(newValidEmail())
+
+		assert.Contains(t, message, "Subject: "+testSubject+"\r\n")
+	})
+}
+
 func TestWriteBase64Lines(t *testing.T) {
 	t.Run("must split encoded content into 76-character lines", func(t *testing.T) {
 		var builder strings.Builder

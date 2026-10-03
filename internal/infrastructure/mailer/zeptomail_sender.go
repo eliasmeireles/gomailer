@@ -21,6 +21,7 @@ type zeptoMailSender struct {
 
 type zeptoMailAddress struct {
 	Address string `json:"address"`
+	Name    string `json:"name,omitempty"`
 }
 
 type zeptoMailRecipient struct {
@@ -87,7 +88,7 @@ func (s *zeptoMailSender) Send(data model.SendEmailData) error {
 
 func buildZeptoMailRequest(data model.SendEmailData) zeptoMailRequest {
 	request := zeptoMailRequest{
-		From:     zeptoMailAddress{Address: data.From},
+		From:     zeptoMailAddress{Address: data.From, Name: strings.TrimSpace(data.FromName)},
 		To:       zeptoMailRecipients(data.Receiver),
 		Cc:       zeptoMailRecipients(data.Cc),
 		Bcc:      zeptoMailRecipients(data.Bcc),

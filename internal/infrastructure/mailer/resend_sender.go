@@ -71,7 +71,7 @@ func (s *resendSender) Send(data model.SendEmailData) error {
 
 func buildResendRequest(data model.SendEmailData) resendEmailRequest {
 	request := resendEmailRequest{
-		From:    data.From,
+		From:    senderAddress(data),
 		To:      data.Receiver,
 		Cc:      data.Cc,
 		Bcc:     data.Bcc,

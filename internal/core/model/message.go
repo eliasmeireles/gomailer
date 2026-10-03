@@ -21,6 +21,11 @@ type SendEmailData struct {
 
 	From string `json:"from" validate:"required,email"`
 
+	// FromName is the optional display name shown as the sender ("Promogram"
+	// instead of the bare address); providers without display-name support
+	// ignore it.
+	FromName string `json:"from_name,omitempty" validate:"omitempty,max=100"`
+
 	// Receiver, Cc and Bcc accept a comma-separated string or an array of addresses.
 	Receiver Recipients `json:"receiver" validate:"required"`
 
